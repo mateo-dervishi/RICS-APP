@@ -2,11 +2,16 @@
 
 import React, { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Target, MessageSquare, Clock, CheckCircle2, TrendingUp, FileText, Video } from 'lucide-react'
+import { Target, MessageSquare, Clock, CheckCircle2, TrendingUp, FileText, Video, Lightbulb } from 'lucide-react'
+import { questionBanks, getAllQuestions, getRandomQuestions } from '../data/questionBanks'
+import { useApp } from '../context/AppContext'
 
 export default function AssessmentPrep() {
+  const { state, calculateProgress } = useApp()
   const [activeTab, setActiveTab] = useState('overview')
-  const [mockScore, setMockScore] = useState(0)
+  const [selectedCategory, setSelectedCategory] = useState<string>('all')
+  const [selectedQuestion, setSelectedQuestion] = useState<any>(null)
+  const [practiceAnswers, setPracticeAnswers] = useState<{ [key: string]: string }>({})
 
   const tabs = [
     { id: 'overview', name: 'Overview', icon: Target },
@@ -15,32 +20,10 @@ export default function AssessmentPrep() {
     { id: 'readiness', name: 'Readiness', icon: TrendingUp }
   ]
 
-  const questionCategories = [
-    {
-      category: 'Ethics & Professionalism',
-      questions: [
-        'Describe a situation where you had to make an ethical decision',
-        'How do you ensure compliance with RICS Rules of Conduct?',
-        'What would you do if asked to act unethically?'
-      ]
-    },
-    {
-      category: 'Technical Competencies',
-      questions: [
-        'Explain your approach to [competency]',
-        'Describe a project where you demonstrated Level 3 competency',
-        'How do you stay current with technical developments?'
-      ]
-    },
-    {
-      category: 'Client Care',
-      questions: [
-        'How do you manage client expectations?',
-        'Describe a challenging client situation',
-        'What is your approach to client communication?'
-      ]
-    }
-  ]
+  const progress = calculateProgress()
+  const questionsToShow = selectedCategory === 'all' 
+    ? getAllQuestions() 
+    : questionBanks[selectedCategory as keyof typeof questionBanks] || []
 
   return (
     <div className="max-w-6xl mx-auto p-6">
@@ -156,26 +139,120 @@ export default function AssessmentPrep() {
             animate={{ opacity: 1, y: 0 }}
             className="space-y-6"
           >
-            {questionCategories.map((category, catIndex) => (
-              <div key={catIndex} className="bg-slate-800/50 border border-slate-700 rounded-xl p-6">
-                <h3 className="text-xl font-semibold mb-4">{category.category}</h3>
-                <div className="space-y-3">
-                  {category.questions.map((question, qIndex) => (
-                    <div
-                      key={qIndex}
-                      className="p-4 bg-slate-700/50 rounded-lg hover:bg-slate-700 transition-all cursor-pointer"
+            {/* Category Filter */}
+            <div className="flex space-x-2 overflow-x-auto pb-2">
+              <button
+                onClick={() => setSelectedCategory('all')}
+                className={`px-4 py-2 rounded-lg whitespace-nowrap ${
+                  selectedCategory === 'all'
+                    ? 'bg-violet-500/20 text-violet-400 border border-violet-500/50'
+                    : 'bg-slate-700 text-gray-400'
+                }`}
+              >
+                All Questions
+              </button>
+              {Object.keys(questionBanks).map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setSelectedCategory(cat)}
+                  className={`px-4 py-2 rounded-lg whitespace-nowrap capitalize ${
+                    selectedCategory === cat
+                      ? 'bg-violet-500/20 text-violet-400 border border-violet-500/50'
+                      : 'bg-slate-700 text-gray-400'
+                  }`}
+                >
+                  {cat.replace(/([A-Z])/g, ' $1').trim()}
+                </button>
+              ))}
+            </div>
+
+            {/* Questions List */}
+            <div className="space-y-3">
+              {questionsToShow.map((question, qIndex) => (
+                <div
+                  key={qIndex}
+                  className="p-4 bg-slate-700/50 rounded-lg hover:bg-slate-700 transition-all cursor-pointer"
+                  onClick={() => setSelectedQuestion(question)}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <p className="text-gray-300 font-medium mb-1">{question.question}</p>
+                      <span className="text-xs text-gray-500">{question.category}</span>
+                    </div>
+                    <button className="ml-4 px-3 py-1 bg-violet-600 hover:bg-violet-700 rounded-lg text-sm whitespace-nowrap">
+                      Practice
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Question Detail Modal */}
+            {selectedQuestion && (
+              <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="bg-slate-800 border border-slate-700 rounded-xl p-8 max-w-3xl w-full max-h-[90vh] overflow-y-auto"
+                >
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-2xl font-bold">Practice Question</h3>
+                    <button
+                      onClick={() => setSelectedQuestion(null)}
+                      className="text-gray-400 hover:text-white"
                     >
-                      <div className="flex items-start justify-between">
-                        <p className="text-gray-300">{question}</p>
-                        <button className="ml-4 px-3 py-1 bg-violet-600 hover:bg-violet-700 rounded-lg text-sm whitespace-nowrap">
-                          Practice
-                        </button>
+                      ✕
+                    </button>
+                  </div>
+                  
+                  <div className="mb-6">
+                    <h4 className="text-lg font-semibold mb-3">{selectedQuestion.question}</h4>
+                    <div className="p-4 bg-blue-500/20 border border-blue-500/50 rounded-lg">
+                      <div className="flex items-start space-x-2">
+                        <Lightbulb className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" />
+                        <div>
+                          <div className="font-semibold text-blue-400 mb-1">Tips</div>
+                          <p className="text-sm text-gray-300">{selectedQuestion.tips}</p>
+                        </div>
                       </div>
                     </div>
-                  ))}
-                </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold mb-2">Your Answer</label>
+                    <textarea
+                      value={practiceAnswers[selectedQuestion.question] || ''}
+                      onChange={(e) => setPracticeAnswers({
+                        ...practiceAnswers,
+                        [selectedQuestion.question]: e.target.value
+                      })}
+                      className="w-full h-48 px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg"
+                      placeholder="Write your answer here..."
+                    />
+                  </div>
+
+                  <div className="flex space-x-3 mt-6">
+                    <button
+                      onClick={() => setSelectedQuestion(null)}
+                      className="px-6 py-2 bg-violet-600 hover:bg-violet-700 rounded-lg font-semibold"
+                    >
+                      Save Answer
+                    </button>
+                    <button
+                      onClick={() => {
+                        setPracticeAnswers({
+                          ...practiceAnswers,
+                          [selectedQuestion.question]: ''
+                        })
+                      }}
+                      className="px-6 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg font-semibold"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </motion.div>
               </div>
-            ))}
+            )}
           </motion.div>
         )}
 
@@ -233,12 +310,30 @@ export default function AssessmentPrep() {
               
               <div className="space-y-4">
                 {[
-                  { item: 'Documents Complete', status: false },
-                  { item: 'Competencies at Required Levels', status: false },
-                  { item: 'CPD Requirements Met', status: false },
-                  { item: 'Experience Diary Complete', status: false },
-                  { item: 'Practice Questions Completed', status: false },
-                  { item: 'Mock Interviews Completed', status: false }
+                  { 
+                    item: 'Documents Complete', 
+                    status: state.documents.filter(d => d.status === 'completed').length > 0 
+                  },
+                  { 
+                    item: 'Competencies at Required Levels', 
+                    status: Object.values(state.competencies).filter(c => c.level >= 2).length >= 8 
+                  },
+                  { 
+                    item: 'CPD Requirements Met', 
+                    status: state.cpd.reduce((sum, a) => sum + a.hours, 0) >= (state.profile.currentLevel === 'mrics' ? 48 : 20)
+                  },
+                  { 
+                    item: 'Experience Diary Complete', 
+                    status: state.experience.length >= (state.profile.selectedRoute === 'structured24' ? 400 : 200)
+                  },
+                  { 
+                    item: 'Practice Questions Completed', 
+                    status: Object.keys(practiceAnswers).length >= 10 
+                  },
+                  { 
+                    item: 'Mock Interviews Completed', 
+                    status: false // TODO: Add mock interview tracking
+                  }
                 ].map((check, i) => (
                   <div key={i} className="flex items-center space-x-3 p-3 bg-slate-700/50 rounded-lg">
                     {check.status ? (
@@ -249,6 +344,39 @@ export default function AssessmentPrep() {
                     <span className={check.status ? 'text-gray-300' : 'text-gray-500'}>{check.item}</span>
                   </div>
                 ))}
+              </div>
+              
+              <div className="mt-6">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-lg font-semibold">Overall Readiness</span>
+                  <span className="text-3xl font-bold text-yellow-400">
+                    {Math.round(
+                      ([
+                        state.documents.filter(d => d.status === 'completed').length > 0,
+                        Object.values(state.competencies).filter(c => c.level >= 2).length >= 8,
+                        state.cpd.reduce((sum, a) => sum + a.hours, 0) >= (state.profile.currentLevel === 'mrics' ? 48 : 20),
+                        state.experience.length >= (state.profile.selectedRoute === 'structured24' ? 400 : 200),
+                        Object.keys(practiceAnswers).length >= 10
+                      ].filter(Boolean).length / 5) * 100
+                    )}%
+                  </span>
+                </div>
+                <div className="w-full bg-slate-700 rounded-full h-4">
+                  <div 
+                    className="bg-yellow-500 h-4 rounded-full transition-all" 
+                    style={{ 
+                      width: `${Math.round(
+                        ([
+                          state.documents.filter(d => d.status === 'completed').length > 0,
+                          Object.values(state.competencies).filter(c => c.level >= 2).length >= 8,
+                          state.cpd.reduce((sum, a) => sum + a.hours, 0) >= (state.profile.currentLevel === 'mrics' ? 48 : 20),
+                          state.experience.length >= (state.profile.selectedRoute === 'structured24' ? 400 : 200),
+                          Object.keys(practiceAnswers).length >= 10
+                        ].filter(Boolean).length / 5) * 100
+                      )}%` 
+                    }}
+                  />
+                </div>
               </div>
             </div>
           </motion.div>

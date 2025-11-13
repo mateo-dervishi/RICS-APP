@@ -2,32 +2,35 @@
 
 import React, { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Plus, Clock, GraduationCap, BookOpen, Users, FileText, Calendar, TrendingUp } from 'lucide-react'
-
-interface CPDActivity {
-  id: string
-  date: string
-  title: string
-  type: 'formal' | 'informal'
-  hours: number
-  description: string
-  competencyLink?: string
-  certificate?: string
-}
+import { Plus, Clock, GraduationCap, BookOpen, Users, FileText, Calendar, TrendingUp, Edit, Trash2 } from 'lucide-react'
+import { useApp } from '../context/AppContext'
 
 export default function CPDTracker() {
-  const [activities, setActivities] = useState<CPDActivity[]>([])
+  const { state, addCPD, updateCPD, deleteCPD, calculateProgress } = useApp()
   const [showAddForm, setShowAddForm] = useState(false)
-  const [targetHours, setTargetHours] = useState(48)
-
+  const [editingId, setEditingId] = useState<string | null>(null)
+  
+  const activities = state.cpd
+  const targetHours = state.profile.currentLevel === 'mrics' ? 48 : 20
   const totalHours = activities.reduce((sum, activity) => sum + activity.hours, 0)
   const formalHours = activities.filter(a => a.type === 'formal').reduce((sum, a) => sum + a.hours, 0)
   const informalHours = activities.filter(a => a.type === 'informal').reduce((sum, a) => sum + a.hours, 0)
   const progress = Math.min((totalHours / targetHours) * 100, 100)
 
-  const addActivity = (activity: Omit<CPDActivity, 'id'>) => {
-    setActivities([...activities, { ...activity, id: Date.now().toString() }])
+  const handleAddActivity = (activity: any) => {
+    addCPD(activity)
     setShowAddForm(false)
+  }
+
+  const handleUpdateActivity = (id: string, activity: any) => {
+    updateCPD(id, activity)
+    setEditingId(null)
+  }
+
+  const handleDeleteActivity = (id: string) => {
+    if (confirm('Are you sure you want to delete this CPD activity?')) {
+      deleteCPD(id)
+    }
   }
 
   return (
@@ -135,12 +138,26 @@ export default function CPDTracker() {
                       <Clock className="w-4 h-4" />
                       <span>{activity.hours} hours</span>
                     </div>
-                    {activity.competencyLink && (
-                      <div className="flex items-center space-x-1">
-                        <TrendingUp className="w-4 h-4" />
-                        <span>Linked to competency</span>
-                      </div>
-                    )}
+                      {activity.competencyLink && (
+                        <div className="flex items-center space-x-1">
+                          <TrendingUp className="w-4 h-4" />
+                          <span>Linked to competency</span>
+                        </div>
+                      )}
+                  </div>
+                  <div className="flex space-x-2 mt-4">
+                    <button
+                      onClick={() => setEditingId(activity.id)}
+                      className="p-2 bg-slate-700 hover:bg-slate-600 rounded-lg"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteActivity(activity.id)}
+                      className="p-2 bg-red-600/20 hover:bg-red-600/30 rounded-lg"
+                    >
+                      <Trash2 className="w-4 h-4 text-red-400" />
+                    </button>
                   </div>
                 </div>
               </div>
@@ -152,22 +169,39 @@ export default function CPDTracker() {
       {/* Add Activity Form Modal */}
       {showAddForm && (
         <CPDActivityForm
-          onSave={addActivity}
+          onSave={handleAddActivity}
           onCancel={() => setShowAddForm(false)}
+        />
+      )}
+
+      {/* Edit Activity Form Modal */}
+      {editingId && (
+        <CPDActivityForm
+          activity={activities.find(a => a.id === editingId)}
+          onSave={(activity) => handleUpdateActivity(editingId, activity)}
+          onCancel={() => setEditingId(null)}
         />
       )}
     </div>
   )
 }
 
-function CPDActivityForm({ onSave, onCancel }: { onSave: (activity: Omit<CPDActivity, 'id'>) => void, onCancel: () => void }) {
+function CPDActivityForm({ 
+  activity, 
+  onSave, 
+  onCancel 
+}: { 
+  activity?: any
+  onSave: (activity: any) => void
+  onCancel: () => void 
+}) {
   const [formData, setFormData] = useState({
-    date: new Date().toISOString().split('T')[0],
-    title: '',
-    type: 'formal' as 'formal' | 'informal',
-    hours: 1,
-    description: '',
-    competencyLink: ''
+    date: activity?.date || new Date().toISOString().split('T')[0],
+    title: activity?.title || '',
+    type: (activity?.type || 'formal') as 'formal' | 'informal',
+    hours: activity?.hours || 1,
+    description: activity?.description || '',
+    competencyLink: activity?.competencyLink || ''
   })
 
   const handleSubmit = (e: React.FormEvent) => {

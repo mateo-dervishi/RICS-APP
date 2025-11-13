@@ -2,38 +2,43 @@
 
 import React, { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Plus, Calendar, Briefcase, Target, FileText, TrendingUp } from 'lucide-react'
-
-interface ExperienceEntry {
-  id: string
-  date: string
-  projectName: string
-  client: string
-  role: string
-  description: string
-  competencies: string[]
-  contractValue?: number
-  contractType?: string
-  lessonsLearned?: string
-}
+import { Plus, Calendar, Briefcase, Target, FileText, TrendingUp, Edit, Trash2 } from 'lucide-react'
+import { useApp } from '../context/AppContext'
+import { mandatoryCompetencies } from '../data/competencies'
 
 export default function ExperienceDiary() {
-  const [entries, setEntries] = useState<ExperienceEntry[]>([])
+  const { state, addExperience, updateExperience, deleteExperience, calculateProgress } = useApp()
   const [showAddForm, setShowAddForm] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [filterCompetency, setFilterCompetency] = useState<string>('')
 
+  const entries = state.experience
+  const progressData = calculateProgress()
+  const targetDays = state.profile.selectedRoute === 'structured24' ? 400 : 200
   const totalDays = entries.length
-  const targetDays = 400
   const progress = Math.min((totalDays / targetDays) * 100, 100)
 
-  const addEntry = (entry: Omit<ExperienceEntry, 'id'>) => {
-    setEntries([...entries, { ...entry, id: Date.now().toString() }])
+  const handleAddEntry = (entry: any) => {
+    addExperience(entry)
     setShowAddForm(false)
   }
 
+  const handleUpdateEntry = (id: string, entry: any) => {
+    updateExperience(id, entry)
+    setEditingId(null)
+  }
+
+  const handleDeleteEntry = (id: string) => {
+    if (confirm('Are you sure you want to delete this entry?')) {
+      deleteExperience(id)
+    }
+  }
+
   const filteredEntries = filterCompetency
-    ? entries.filter(e => e.competencies.includes(filterCompetency))
+    ? entries.filter(e => e.competencies && e.competencies.some(c => c.toLowerCase().includes(filterCompetency.toLowerCase())))
     : entries
+
+  const competencyOptions = mandatoryCompetencies.map(c => c.name)
 
   return (
     <div className="max-w-6xl mx-auto p-6">
@@ -93,9 +98,9 @@ export default function ExperienceDiary() {
           className="px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg"
         >
           <option value="">All Competencies</option>
-          <option value="ethics">Ethics</option>
-          <option value="client-care">Client Care</option>
-          <option value="communication">Communication</option>
+          {competencyOptions.map(comp => (
+            <option key={comp} value={comp}>{comp}</option>
+          ))}
         </select>
       </div>
 
@@ -161,28 +166,37 @@ export default function ExperienceDiary() {
       {/* Add Entry Form Modal */}
       {showAddForm && (
         <ExperienceEntryForm
-          onSave={addEntry}
+          onSave={handleAddEntry}
           onCancel={() => setShowAddForm(false)}
+          competencyOptions={competencyOptions}
         />
       )}
     </div>
   )
 }
 
-function ExperienceEntryForm({ onSave, onCancel }: { onSave: (entry: Omit<ExperienceEntry, 'id'>) => void, onCancel: () => void }) {
+function ExperienceEntryForm({ 
+  entry, 
+  onSave, 
+  onCancel,
+  competencyOptions 
+}: { 
+  entry?: any
+  onSave: (entry: any) => void
+  onCancel: () => void
+  competencyOptions: string[]
+}) {
   const [formData, setFormData] = useState({
-    date: new Date().toISOString().split('T')[0],
-    projectName: '',
-    client: '',
-    role: '',
-    description: '',
-    competencies: [] as string[],
-    contractValue: '',
-    contractType: '',
-    lessonsLearned: ''
+    date: entry?.date || new Date().toISOString().split('T')[0],
+    projectName: entry?.projectName || '',
+    client: entry?.client || '',
+    role: entry?.role || '',
+    description: entry?.description || '',
+    competencies: entry?.competencies || [] as string[],
+    contractValue: entry?.contractValue?.toString() || '',
+    contractType: entry?.contractType || '',
+    lessonsLearned: entry?.lessonsLearned || ''
   })
-
-  const competencyOptions = ['Ethics', 'Client Care', 'Communication', 'Health & Safety', 'Sustainability']
 
   const toggleCompetency = (comp: string) => {
     setFormData({
@@ -276,13 +290,13 @@ function ExperienceEntryForm({ onSave, onCancel }: { onSave: (entry: Omit<Experi
 
           <div>
             <label className="block text-sm font-semibold mb-2">Competencies Demonstrated</label>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
               {competencyOptions.map((comp) => (
                 <button
                   key={comp}
                   type="button"
                   onClick={() => toggleCompetency(comp)}
-                  className={`px-3 py-1 rounded-lg border-2 transition-all ${
+                  className={`px-3 py-1 rounded-lg border-2 transition-all text-sm ${
                     formData.competencies.includes(comp)
                       ? 'border-purple-500 bg-purple-500/20 text-purple-400'
                       : 'border-slate-600 bg-slate-700 text-gray-400'

@@ -3,16 +3,35 @@
 import React, { useState } from 'react'
 import { motion } from 'framer-motion'
 import { BarChart3, TrendingUp, Target, Clock, Award, CheckCircle2 } from 'lucide-react'
+import { useApp } from '../context/AppContext'
 
 export default function Analytics() {
+  const { state, calculateProgress } = useApp()
   const [timeframe, setTimeframe] = useState('all')
 
+  const progress = calculateProgress()
+  
   const stats = {
-    overallProgress: 0,
-    competencies: { completed: 0, total: 11, percentage: 0 },
-    cpd: { hours: 0, target: 48, percentage: 0 },
-    experience: { days: 0, target: 400, percentage: 0 },
-    documents: { completed: 0, total: 5 },
+    overallProgress: progress.overall,
+    competencies: { 
+      completed: Object.values(state.competencies).filter(c => c.level >= 1).length, 
+      total: 11, 
+      percentage: progress.competencies 
+    },
+    cpd: { 
+      hours: state.cpd.reduce((sum, a) => sum + a.hours, 0), 
+      target: state.profile.currentLevel === 'mrics' ? 48 : 20, 
+      percentage: progress.cpd 
+    },
+    experience: { 
+      days: state.experience.length, 
+      target: state.profile.selectedRoute === 'structured24' ? 400 : 200, 
+      percentage: progress.experience 
+    },
+    documents: { 
+      completed: state.documents.filter(d => d.status === 'completed').length, 
+      total: state.documents.length 
+    },
     assessments: { passed: 0, total: 0 }
   }
 
@@ -52,9 +71,9 @@ export default function Analytics() {
             <span className="text-gray-400">Overall Progress</span>
             <TrendingUp className="w-5 h-5 text-fuchsia-400" />
           </div>
-          <div className="text-3xl font-bold text-fuchsia-400">{stats.overallProgress}%</div>
+              <div className="text-3xl font-bold text-fuchsia-400">{stats.overallProgress}%</div>
           <div className="w-full bg-slate-700 rounded-full h-2 mt-3">
-            <div className="bg-fuchsia-500 h-2 rounded-full" style={{ width: `${stats.overallProgress}%` }} />
+            <div className="bg-fuchsia-500 h-2 rounded-full transition-all" style={{ width: `${stats.overallProgress}%` }} />
           </div>
         </div>
 
@@ -97,17 +116,21 @@ export default function Analytics() {
         <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-6">
           <h3 className="text-lg font-semibold mb-4">Competency Progress</h3>
           <div className="space-y-3">
-            {['Ethics', 'Client Care', 'Communication', 'Health & Safety'].map((comp, i) => (
-              <div key={i}>
-                <div className="flex justify-between text-sm mb-1">
-                  <span className="text-gray-400">{comp}</span>
-                  <span className="text-gray-400">0%</span>
+            {Object.entries(state.competencies).slice(0, 4).map(([id, comp]) => {
+              const compName = id.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+              const percentage = comp.level > 0 ? (comp.level / 3) * 100 : 0
+              return (
+                <div key={id}>
+                  <div className="flex justify-between text-sm mb-1">
+                    <span className="text-gray-400">{compName}</span>
+                    <span className="text-gray-400">{Math.round(percentage)}%</span>
+                  </div>
+                  <div className="w-full bg-slate-700 rounded-full h-2">
+                    <div className="bg-blue-500 h-2 rounded-full transition-all" style={{ width: `${percentage}%` }} />
+                  </div>
                 </div>
-                <div className="w-full bg-slate-700 rounded-full h-2">
-                  <div className="bg-blue-500 h-2 rounded-full" style={{ width: '0%' }} />
-                </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
 

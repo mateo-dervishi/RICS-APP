@@ -15,22 +15,23 @@ import {
   Sparkles
 } from 'lucide-react'
 import { membershipLevels, fees } from '../data/pathways'
-
-interface UserProfile {
-  degreeType: 'rics-accredited' | 'non-rics' | 'none'
-  yearsExperience: number
-  currentLevel: 'student' | 'graduate' | 'assocrics' | 'mrics' | 'frics'
-  specialization?: string
-}
+import { useApp } from '../context/AppContext'
 
 export default function PathwayAdvisor() {
+  const { state, updateProfile } = useApp()
   const [step, setStep] = useState(1)
-  const [profile, setProfile] = useState<Partial<UserProfile>>({})
+  const [profile, setProfile] = useState<Partial<any>>({
+    currentLevel: state.profile.currentLevel,
+    degreeType: state.profile.degreeType,
+    yearsExperience: state.profile.yearsExperience,
+    specialization: state.profile.specialization
+  })
   const [recommendations, setRecommendations] = useState<any[]>([])
 
   const handleAnswer = (question: string, answer: any) => {
     const updatedProfile = { ...profile, [question]: answer }
     setProfile(updatedProfile)
+    updateProfile({ [question]: answer })
     
     if (step < 4) {
       setStep(step + 1)
@@ -39,7 +40,7 @@ export default function PathwayAdvisor() {
     }
   }
 
-  const calculateRecommendations = (userProfile: Partial<UserProfile>) => {
+  const calculateRecommendations = (userProfile: Partial<any>) => {
     const recs: any[] = []
     const { degreeType, yearsExperience, currentLevel } = userProfile
 
@@ -323,7 +324,19 @@ export default function PathwayAdvisor() {
                   </div>
                 </div>
 
-                <button className="w-full mt-4 p-3 bg-purple-600 hover:bg-purple-700 rounded-lg font-semibold flex items-center justify-center">
+                <button 
+                  onClick={() => {
+                    updateProfile({
+                      currentLevel: rec.level === 'student' ? 'student' :
+                                   rec.level === 'assocrics' ? 'assocrics' :
+                                   rec.level === 'mrics' ? 'mrics' : 'frics',
+                      selectedRoute: rec.route,
+                      selectedPathway: rec.pathway
+                    })
+                    alert('Pathway selected! Your profile has been updated.')
+                  }}
+                  className="w-full mt-4 p-3 bg-purple-600 hover:bg-purple-700 rounded-lg font-semibold flex items-center justify-center"
+                >
                   Select This Pathway <ArrowRight className="w-5 h-5 ml-2" />
                 </button>
               </motion.div>

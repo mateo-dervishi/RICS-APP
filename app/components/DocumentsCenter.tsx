@@ -2,11 +2,15 @@
 
 import React, { useState } from 'react'
 import { motion } from 'framer-motion'
-import { FileText, Download, Upload, Edit, CheckCircle2, Clock, Sparkles } from 'lucide-react'
+import { FileText, Download, Upload, Edit, CheckCircle2, Clock, Sparkles, AlertCircle, X } from 'lucide-react'
+import { useApp } from '../context/AppContext'
+import { exportDocument, generateSummaryDocument, generateCaseStudyTemplate } from '../utils/documentExport'
 
 export default function DocumentsCenter() {
+  const { state, createDocument, updateDocument, deleteDocument, getWordCount, validateDocument } = useApp()
   const [activeTab, setActiveTab] = useState('templates')
   const [selectedDoc, setSelectedDoc] = useState<string | null>(null)
+  const [editingContent, setEditingContent] = useState('')
 
   const tabs = [
     { id: 'templates', name: 'Templates', icon: FileText },
@@ -52,11 +56,42 @@ export default function DocumentsCenter() {
     }
   ]
 
-  const myDocuments = [
-    { id: '1', name: 'Summary of Experience v1', type: 'summary', status: 'draft', lastModified: '2024-01-15' },
-    { id: '2', name: 'Case Study - Office Refurb', type: 'case-study', status: 'in-review', lastModified: '2024-01-10' },
-    { id: '3', name: 'CPD Record 2023', type: 'cpd-record', status: 'completed', lastModified: '2023-12-31' }
-  ]
+  const myDocuments = state.documents
+
+  const handleCreateDocument = (type: string, name: string) => {
+    const docId = createDocument(type, name)
+    setSelectedDoc(docId)
+    setEditingContent(state.documents.find(d => d.id === docId)?.content || '')
+    setActiveTab('my-documents')
+  }
+
+  const handleSaveDocument = (id: string) => {
+    updateDocument(id, editingContent)
+    setSelectedDoc(null)
+    setEditingContent('')
+  }
+
+  const handleExportDocument = (doc: any, format: 'txt' | 'docx' = 'txt') => {
+    if (doc.type === 'summary') {
+      const content = generateSummaryDocument(state)
+      exportDocument(content, doc.name, format)
+    } else {
+      exportDocument(doc.content, doc.name, format)
+    }
+  }
+
+  const handleDeleteDoc = (id: string) => {
+    if (confirm('Are you sure you want to delete this document?')) {
+      deleteDocument(id)
+      if (selectedDoc === id) {
+        setSelectedDoc(null)
+        setEditingContent('')
+      }
+    }
+  }
+
+  const selectedDocument = selectedDoc ? myDocuments.find(d => d.id === selectedDoc) : null
+  const validation = selectedDocument ? validateDocument(selectedDocument.id) : { valid: true, errors: [] }
 
   return (
     <div className="max-w-6xl mx-auto p-6">
@@ -124,13 +159,12 @@ export default function DocumentsCenter() {
                   </div>
                 </div>
                 <div className="flex space-x-3">
-                  <button className="flex items-center space-x-2 px-4 py-2 bg-rose-600 hover:bg-rose-700 rounded-lg">
-                    <Download className="w-4 h-4" />
-                    <span>Download Template</span>
-                  </button>
-                  <button className="flex items-center space-x-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg">
+                  <button 
+                    onClick={() => handleCreateDocument(template.id, `${template.name} - ${new Date().toLocaleDateString()}`)}
+                    className="flex items-center space-x-2 px-4 py-2 bg-rose-600 hover:bg-rose-700 rounded-lg"
+                  >
                     <Edit className="w-4 h-4" />
-                    <span>Start Writing</span>
+                    <span>Create Document</span>
                   </button>
                 </div>
               </div>
@@ -177,17 +211,115 @@ export default function DocumentsCenter() {
                       </div>
                     </div>
                     <div className="flex space-x-2">
-                      <button className="p-2 bg-slate-700 hover:bg-slate-600 rounded-lg">
+                      <button 
+                        onClick={() => {
+                          setSelectedDoc(doc.id)
+                          setEditingContent(doc.content)
+                        }}
+                        className="p-2 bg-slate-700 hover:bg-slate-600 rounded-lg"
+                      >
                         <Edit className="w-4 h-4" />
                       </button>
-                      <button className="p-2 bg-slate-700 hover:bg-slate-600 rounded-lg">
+                      <button 
+                        onClick={() => handleExportDocument(doc)}
+                        className="p-2 bg-slate-700 hover:bg-slate-600 rounded-lg"
+                      >
                         <Download className="w-4 h-4" />
+                      </button>
+                      <button 
+                        onClick={() => handleDeleteDoc(doc.id)}
+                        className="p-2 bg-red-600/20 hover:bg-red-600/30 rounded-lg"
+                      >
+                        <X className="w-4 h-4 text-red-400" />
                       </button>
                     </div>
                   </div>
                 </div>
               ))
             )}
+          </motion.div>
+        )}
+
+        {/* Document Editor */}
+        {selectedDocument && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          >
+            <div className="bg-slate-800 border border-slate-700 rounded-xl p-8 max-w-5xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-2xl font-bold">{selectedDocument.name}</h3>
+                  <div className="flex items-center space-x-4 mt-2 text-sm text-gray-400">
+                    <span>Words: {getWordCount(editingContent)}</span>
+                    {selectedDocument.type === 'summary' && (
+                      <span className={getWordCount(editingContent) >= 4500 && getWordCount(editingContent) <= 5500 ? 'text-green-400' : 'text-yellow-400'}>
+                        Target: 4,500-5,500
+                      </span>
+                    )}
+                    {selectedDocument.type === 'case-study' && (
+                      <span className={getWordCount(editingContent) >= 2500 && getWordCount(editingContent) <= 3500 ? 'text-green-400' : 'text-yellow-400'}>
+                        Target: 2,500-3,500
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setSelectedDoc(null)
+                    setEditingContent('')
+                  }}
+                  className="text-gray-400 hover:text-white"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {!validation.valid && (
+                <div className="mb-4 p-4 bg-red-500/20 border border-red-500/50 rounded-lg">
+                  <div className="flex items-center space-x-2 mb-2">
+                    <AlertCircle className="w-5 h-5 text-red-400" />
+                    <h4 className="font-semibold text-red-400">Validation Errors</h4>
+                  </div>
+                  <ul className="list-disc list-inside text-sm text-red-300">
+                    {validation.errors.map((error, i) => (
+                      <li key={i}>{error}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              <textarea
+                value={editingContent}
+                onChange={(e) => setEditingContent(e.target.value)}
+                className="w-full h-96 px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg font-mono text-sm"
+                placeholder="Start writing your document..."
+              />
+
+              <div className="flex space-x-3 mt-4">
+                <button
+                  onClick={() => handleSaveDocument(selectedDocument.id)}
+                  className="px-6 py-2 bg-rose-600 hover:bg-rose-700 rounded-lg font-semibold"
+                >
+                  Save
+                </button>
+                <button
+                  onClick={() => handleExportDocument(selectedDocument, 'txt')}
+                  className="px-6 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg font-semibold flex items-center space-x-2"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Export TXT</span>
+                </button>
+                <button
+                  onClick={() => handleExportDocument(selectedDocument, 'docx')}
+                  className="px-6 py-2 bg-green-600 hover:bg-green-700 rounded-lg font-semibold flex items-center space-x-2"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Export DOC</span>
+                </button>
+              </div>
+            </div>
           </motion.div>
         )}
 

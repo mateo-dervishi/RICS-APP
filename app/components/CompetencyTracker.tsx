@@ -2,30 +2,45 @@
 
 import React, { useState } from 'react'
 import { motion } from 'framer-motion'
-import { CheckCircle2, AlertCircle, Target, TrendingUp, FileText } from 'lucide-react'
+import { CheckCircle2, AlertCircle, Target, TrendingUp, FileText, Link, X } from 'lucide-react'
 import { mandatoryCompetencies, competencyLevels } from '../data/competencies'
-
-interface CompetencyProgress {
-  [key: string]: {
-    level: number
-    evidence: string[]
-    lastUpdated: string
-  }
-}
+import { useApp } from '../context/AppContext'
 
 export default function CompetencyTracker() {
-  const [competencies, setCompetencies] = useState<CompetencyProgress>({})
+  const { state, updateCompetency } = useApp()
   const [selectedCompetency, setSelectedCompetency] = useState<string | null>(null)
+  const [newEvidence, setNewEvidence] = useState('')
+  const competencies = state.competencies
 
   const updateCompetencyLevel = (id: string, level: number) => {
-    setCompetencies(prev => ({
-      ...prev,
-      [id]: {
-        ...prev[id],
-        level,
-        lastUpdated: new Date().toISOString()
+    updateCompetency(id, level, competencies[id]?.evidence || [])
+  }
+
+  const addEvidence = (id: string) => {
+    if (newEvidence.trim()) {
+      const currentEvidence = competencies[id]?.evidence || []
+      updateCompetency(id, competencies[id]?.level || 0, [...currentEvidence, newEvidence.trim()])
+      setNewEvidence('')
+    }
+  }
+
+  const removeEvidence = (id: string, index: number) => {
+    const currentEvidence = competencies[id]?.evidence || []
+    updateCompetency(id, competencies[id]?.level || 0, currentEvidence.filter((_, i) => i !== index))
+  }
+
+  const linkExperience = (compId: string) => {
+    const availableProjects = state.experience.filter(exp => 
+      exp.competencies && exp.competencies.some(c => c.toLowerCase().includes(compId.split('-')[0]))
+    )
+    if (availableProjects.length > 0) {
+      const project = availableProjects[0]
+      const evidenceText = `${project.projectName} - ${project.description.substring(0, 100)}...`
+      const currentEvidence = competencies[compId]?.evidence || []
+      if (!currentEvidence.includes(evidenceText)) {
+        updateCompetency(compId, competencies[compId]?.level || 0, [...currentEvidence, evidenceText])
       }
-    }))
+    }
   }
 
   const getProgress = () => {
@@ -139,6 +154,25 @@ export default function CompetencyTracker() {
                     ))}
                   </div>
 
+                  {/* Evidence Preview */}
+                  {progress?.evidence && progress.evidence.length > 0 && (
+                    <div className="mt-4">
+                      <div className="text-sm font-semibold mb-2 text-gray-400">Linked Evidence ({progress.evidence.length}):</div>
+                      <div className="flex flex-wrap gap-2">
+                        {progress.evidence.slice(0, 2).map((ev, i) => (
+                          <span key={i} className="px-2 py-1 bg-purple-500/20 text-purple-400 rounded text-xs">
+                            {ev.substring(0, 30)}...
+                          </span>
+                        ))}
+                        {progress.evidence.length > 2 && (
+                          <span className="px-2 py-1 bg-slate-700 text-gray-400 rounded text-xs">
+                            +{progress.evidence.length - 2} more
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Level Description */}
                   {currentLevel > 0 && (
                     <div className="mt-4 p-4 bg-slate-700/50 rounded-lg">
@@ -163,20 +197,77 @@ export default function CompetencyTracker() {
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-slate-800 border border-slate-700 rounded-xl p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+            className="bg-slate-800 border border-slate-700 rounded-xl p-8 max-w-3xl w-full max-h-[90vh] overflow-y-auto"
           >
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-2xl font-bold">
                 {mandatoryCompetencies.find(c => c.id === selectedCompetency)?.name}
               </h3>
               <button
-                onClick={() => setSelectedCompetency(null)}
+                onClick={() => {
+                  setSelectedCompetency(null)
+                  setNewEvidence('')
+                }}
                 className="text-gray-400 hover:text-white"
               >
                 ✕
               </button>
             </div>
-            {/* Add detailed view here */}
+
+            {/* Evidence Management */}
+            <div className="space-y-4">
+              <div>
+                <h4 className="font-semibold mb-3">Evidence & Examples</h4>
+                
+                {/* Existing Evidence */}
+                {competencies[selectedCompetency]?.evidence && competencies[selectedCompetency].evidence.length > 0 ? (
+                  <div className="space-y-2 mb-4">
+                    {competencies[selectedCompetency].evidence.map((ev, i) => (
+                      <div key={i} className="flex items-start justify-between p-3 bg-slate-700/50 rounded-lg">
+                        <span className="text-sm flex-1">{ev}</span>
+                        <button
+                          onClick={() => removeEvidence(selectedCompetency, i)}
+                          className="ml-2 p-1 hover:bg-slate-600 rounded"
+                        >
+                          <X className="w-4 h-4 text-red-400" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-400 mb-4">No evidence linked yet</p>
+                )}
+
+                {/* Add Evidence */}
+                <div className="flex space-x-2 mb-4">
+                  <input
+                    type="text"
+                    value={newEvidence}
+                    onChange={(e) => setNewEvidence(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && addEvidence(selectedCompetency)}
+                    placeholder="Add evidence or example..."
+                    className="flex-1 px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg"
+                  />
+                  <button
+                    onClick={() => addEvidence(selectedCompetency)}
+                    className="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg"
+                  >
+                    Add
+                  </button>
+                </div>
+
+                {/* Link from Experience */}
+                {state.experience.length > 0 && (
+                  <button
+                    onClick={() => linkExperience(selectedCompetency)}
+                    className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm"
+                  >
+                    <Link className="w-4 h-4" />
+                    <span>Link from Experience Diary</span>
+                  </button>
+                )}
+              </div>
+            </div>
           </motion.div>
         </div>
       )}

@@ -20,6 +20,7 @@ import {
   TrendingUp,
   Settings
 } from 'lucide-react'
+import { useApp } from '../context/AppContext'
 
 interface DashboardProps {
   currentLevel: string
@@ -28,6 +29,9 @@ interface DashboardProps {
 }
 
 export default function Dashboard({ currentLevel, selectedPathway, onNavigate }: DashboardProps) {
+  const { state, calculateProgress } = useApp()
+  const progress = calculateProgress()
+  
   const handleModuleClick = (moduleId: string) => {
     if (onNavigate) {
       onNavigate(moduleId)
@@ -82,10 +86,34 @@ export default function Dashboard({ currentLevel, selectedPathway, onNavigate }:
         {/* Quick Stats */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
           {[
-            { label: 'Overall Progress', value: '0%', icon: TrendingUp, color: 'text-purple-400' },
-            { label: 'Competencies', value: '0/11', icon: Target, color: 'text-blue-400' },
-            { label: 'CPD Hours', value: '0/48', icon: GraduationCap, color: 'text-green-400' },
-            { label: 'Experience Days', value: '0/400', icon: Calendar, color: 'text-yellow-400' }
+            { 
+              label: 'Overall Progress', 
+              value: `${progress.overall}%`, 
+              icon: TrendingUp, 
+              color: 'text-purple-400',
+              progress: progress.overall
+            },
+            { 
+              label: 'Competencies', 
+              value: `${Object.values(state.competencies).filter(c => c.level >= 1).length}/11`, 
+              icon: Target, 
+              color: 'text-blue-400',
+              progress: progress.competencies
+            },
+            { 
+              label: 'CPD Hours', 
+              value: `${state.cpd.reduce((sum, a) => sum + a.hours, 0)}/${state.profile.currentLevel === 'mrics' ? 48 : 20}`, 
+              icon: GraduationCap, 
+              color: 'text-green-400',
+              progress: progress.cpd
+            },
+            { 
+              label: 'Experience Days', 
+              value: `${state.experience.length}/${state.profile.selectedRoute === 'structured24' ? 400 : 200}`, 
+              icon: Calendar, 
+              color: 'text-yellow-400',
+              progress: progress.experience
+            }
           ].map((stat, index) => (
             <motion.div
               key={index}
@@ -98,7 +126,20 @@ export default function Dashboard({ currentLevel, selectedPathway, onNavigate }:
                 <stat.icon className={`w-6 h-6 ${stat.color}`} />
                 <div className="text-2xl font-bold">{stat.value}</div>
               </div>
-              <div className="text-sm text-gray-400">{stat.label}</div>
+              <div className="text-sm text-gray-400 mb-2">{stat.label}</div>
+              {stat.progress !== undefined && (
+                <div className="w-full bg-slate-700 rounded-full h-1.5">
+                  <div 
+                    className={`h-1.5 rounded-full transition-all ${
+                      stat.color.includes('purple') ? 'bg-purple-500' :
+                      stat.color.includes('blue') ? 'bg-blue-500' :
+                      stat.color.includes('green') ? 'bg-green-500' :
+                      'bg-yellow-500'
+                    }`}
+                    style={{ width: `${stat.progress}%` }}
+                  />
+                </div>
+              )}
             </motion.div>
           ))}
         </div>
