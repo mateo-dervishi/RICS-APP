@@ -7,6 +7,15 @@ import CompetencyTracker from './components/CompetencyTracker'
 import CPDTracker from './components/CPDTracker'
 import ExperienceDiary from './components/ExperienceDiary'
 import FinancialPlanner from './components/FinancialPlanner'
+import StudentModule from './components/StudentModule'
+import AcademicAssessment from './components/AcademicAssessment'
+import AssocRICSModule from './components/AssocRICSModule'
+import MRICSRoutes from './components/MRICSRoutes'
+import FRICSModule from './components/FRICSModule'
+import DocumentsCenter from './components/DocumentsCenter'
+import AssessmentPrep from './components/AssessmentPrep'
+import Network from './components/Network'
+import Analytics from './components/Analytics'
 
 export default function Home() {
   const [currentView, setCurrentView] = useState<string>('dashboard')
@@ -22,18 +31,37 @@ export default function Home() {
           <Dashboard
             currentLevel={userProfile.currentLevel}
             selectedPathway={userProfile.selectedPathway}
+            onNavigate={setCurrentView}
           />
         )
       case 'pathway-advisor':
         return <PathwayAdvisor />
+      case 'student':
+        return <StudentModule />
+      case 'academic':
+        return <AcademicAssessment />
+      case 'assocrics':
+        return <AssocRICSModule />
+      case 'mrics':
+        return <MRICSRoutes />
+      case 'frics':
+        return <FRICSModule />
       case 'competencies':
         return <CompetencyTracker />
-      case 'cpd':
-        return <CPDTracker />
       case 'experience':
         return <ExperienceDiary />
+      case 'cpd':
+        return <CPDTracker />
+      case 'documents':
+        return <DocumentsCenter />
+      case 'assessment':
+        return <AssessmentPrep />
       case 'financial':
         return <FinancialPlanner />
+      case 'network':
+        return <Network />
+      case 'analytics':
+        return <Analytics />
       default:
         return (
           <Dashboard
