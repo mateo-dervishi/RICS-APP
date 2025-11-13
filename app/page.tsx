@@ -26,7 +26,8 @@ import {
   FolderOpen,
   MessageSquare,
   TrendingUp,
-  Plus
+  Plus,
+  Users
 } from 'lucide-react'
 
 // RICS Requirements Data
@@ -398,12 +399,14 @@ export default function PersonalRicsTracker() {
                           </div>
                         ))
                       ) : (
-                        doc.requirements.map((req, index) => (
-                          <div key={index} className="flex items-center space-x-3 p-2 bg-slate-800/50 rounded">
-                            <AlertCircle className="w-4 h-4 text-yellow-400" />
-                            <span className="text-sm">{req}</span>
-                          </div>
-                        ))
+                        'requirements' in doc && doc.requirements ? (
+                          doc.requirements.map((req, index) => (
+                            <div key={index} className="flex items-center space-x-3 p-2 bg-slate-800/50 rounded">
+                              <AlertCircle className="w-4 h-4 text-yellow-400" />
+                              <span className="text-sm">{req}</span>
+                            </div>
+                          ))
+                        ) : null
                       )}
                     </div>
                     
