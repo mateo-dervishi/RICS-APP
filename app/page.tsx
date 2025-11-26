@@ -19,6 +19,8 @@ import Analytics from './components/Analytics'
 import Settings from './components/Settings'
 import RICSAgent from './components/RICSAgent'
 import LoginGateway from './components/LoginGateway'
+import AppLayout from './components/AppLayout'
+import TextbookViewer from './components/TextbookViewer'
 import { useApp } from './context/AppContext'
 
 export default function Home() {
@@ -81,6 +83,8 @@ export default function Home() {
         return <Settings />
       case 'rics-agent':
         return <RICSAgent />
+      case 'textbooks':
+        return <TextbookViewer />
       default:
         return (
           <Dashboard
@@ -92,30 +96,10 @@ export default function Home() {
     }
   }
 
-  // If we're on a specific module view, render it with back button
-  if (currentView !== 'dashboard') {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
-        <div className="border-b border-slate-800 bg-slate-900/50 backdrop-blur-sm">
-          <div className="max-w-7xl mx-auto px-6 py-4">
-            <button
-              onClick={() => setCurrentView('dashboard')}
-              className="flex items-center space-x-2 text-gray-400 hover:text-white transition-colors"
-            >
-              <span>←</span>
-              <span>Back to Dashboard</span>
-            </button>
-          </div>
-        </div>
-        {renderView()}
-      </div>
-    )
-  }
-
-  // Otherwise render the dashboard which handles its own navigation
+  // Use new AppLayout for all views
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+    <AppLayout currentView={currentView} onNavigate={setCurrentView}>
       {renderView()}
-    </div>
+    </AppLayout>
   )
 }
