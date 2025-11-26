@@ -5,6 +5,9 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Document, Page, pdfjs } from 'react-pdf'
 import 'react-pdf/dist/Page/AnnotationLayer.css'
 import 'react-pdf/dist/Page/TextLayer.css'
+
+// Get the version from react-pdf's pdfjs-dist dependency
+const pdfjsVersion = pdfjs.version
 import {
   BookOpen,
   X,
@@ -26,12 +29,10 @@ import {
 } from 'lucide-react'
 import { ricsTextbooks, RICSTextbook, getTextbookById } from '../data/ricsTextbooks'
 
-// Configure PDF.js worker - use local file first, fallback to CDN
+// Configure PDF.js worker - use version-matched worker
 if (typeof window !== 'undefined') {
-  // Try local file first (most reliable)
-  pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs'
-  // Fallback to CDN if local file doesn't work
-  // pdfjs.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`
+  // Use the worker file that matches react-pdf's pdfjs-dist version
+  pdfjs.GlobalWorkerOptions.workerSrc = `/pdf.worker.min.mjs`
 }
 
 interface Note {
