@@ -20,14 +20,15 @@ import {
   Menu,
   Edit2,
   Plus,
-  Type,
-  Loader
+  Loader,
+  Maximize2,
+  Minimize2
 } from 'lucide-react'
 import { ricsTextbooks, RICSTextbook, getTextbookById } from '../data/ricsTextbooks'
 
 // Configure PDF.js worker
 if (typeof window !== 'undefined') {
-  pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`
+  pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`
 }
 
 interface Note {
@@ -76,8 +77,10 @@ export default function TextbookViewer({ textbookId, onClose }: { textbookId?: s
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
   const [highlightColor, setHighlightColor] = useState('yellow')
   const [noteColor, setNoteColor] = useState('yellow')
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [showTextbookTab, setShowTextbookTab] = useState(true)
+  const [showNotesTab, setShowNotesTab] = useState(true)
   const [loading, setLoading] = useState(false)
+  const [pdfError, setPdfError] = useState<string | null>(null)
   const pdfContainerRef = useRef<HTMLDivElement>(null)
   const pageRefs = useRef<(HTMLDivElement | null)[]>([])
   const selectionRef = useRef<{ startX: number; startY: number; endX: number; endY: number; text: string } | null>(null)
@@ -146,16 +149,19 @@ export default function TextbookViewer({ textbookId, onClose }: { textbookId?: s
     setShowLibrary(false)
     setCurrentPage(1)
     setLoading(true)
+    setPdfError(null)
   }
 
   const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
     setNumPages(numPages)
     setLoading(false)
+    setPdfError(null)
   }
 
   const onDocumentLoadError = (error: Error) => {
     console.error('Error loading PDF:', error)
     setLoading(false)
+    setPdfError(`Failed to load PDF: ${error.message}`)
   }
 
   // Handle text selection for highlighting
@@ -273,7 +279,8 @@ export default function TextbookViewer({ textbookId, onClose }: { textbookId?: s
   }
 
   const getPdfPath = (filename: string) => {
-    return `/RICS FILES/${encodeURIComponent(filename)}`
+    // Ensure proper path encoding
+    return `/RICS FILES/${filename}`
   }
 
   const currentPageNotes = notes.filter(n => n.page === currentPage)
@@ -352,76 +359,97 @@ export default function TextbookViewer({ textbookId, onClose }: { textbookId?: s
           </div>
 
           <div className="flex items-center space-x-2">
-            {/* Page Navigation */}
+            {/* Tab Toggles */}
             <div className="flex items-center space-x-2 px-3 py-1 bg-slate-800 rounded-lg">
-              <button
-                onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                disabled={currentPage === 1}
-                className="p-1 hover:bg-slate-700 rounded disabled:opacity-50"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <span className="text-sm px-2">
-                Page {currentPage} {numPages && `of ${numPages}`}
-              </span>
-              <button
-                onClick={() => setCurrentPage(Math.min(numPages || 1, currentPage + 1))}
-                disabled={currentPage >= (numPages || 1)}
-                className="p-1 hover:bg-slate-700 rounded disabled:opacity-50"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
+              {!showTextbookTab && (
+                <button
+                  onClick={() => setShowTextbookTab(true)}
+                  className="px-3 py-1 bg-purple-600 hover:bg-purple-700 rounded text-sm font-medium flex items-center space-x-1"
+                  title="Show Textbook"
+                >
+                  <BookOpen className="w-4 h-4" />
+                  <span>Textbook</span>
+                </button>
+              )}
+              {!showNotesTab && (
+                <button
+                  onClick={() => setShowNotesTab(true)}
+                  className="px-3 py-1 bg-purple-600 hover:bg-purple-700 rounded text-sm font-medium flex items-center space-x-1"
+                  title="Show Notes"
+                >
+                  <StickyNote className="w-4 h-4" />
+                  <span>Notes</span>
+                </button>
+              )}
             </div>
+
+            {/* Page Navigation */}
+            {showTextbookTab && (
+              <div className="flex items-center space-x-2 px-3 py-1 bg-slate-800 rounded-lg">
+                <button
+                  onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                  disabled={currentPage === 1}
+                  className="p-1 hover:bg-slate-700 rounded disabled:opacity-50"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <span className="text-sm px-2">
+                  Page {currentPage} {numPages && `of ${numPages}`}
+                </span>
+                <button
+                  onClick={() => setCurrentPage(Math.min(numPages || 1, currentPage + 1))}
+                  disabled={currentPage >= (numPages || 1)}
+                  className="p-1 hover:bg-slate-700 rounded disabled:opacity-50"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            )}
 
             {/* Zoom Controls */}
-            <div className="flex items-center space-x-2 px-3 py-1 bg-slate-800 rounded-lg">
-              <button
-                onClick={() => setZoom(Math.max(50, zoom - 10))}
-                className="p-1 hover:bg-slate-700 rounded"
-              >
-                <ZoomOut className="w-4 h-4" />
-              </button>
-              <span className="text-sm px-2">{zoom}%</span>
-              <button
-                onClick={() => setZoom(Math.min(200, zoom + 10))}
-                className="p-1 hover:bg-slate-700 rounded"
-              >
-                <ZoomIn className="w-4 h-4" />
-              </button>
-            </div>
+            {showTextbookTab && (
+              <div className="flex items-center space-x-2 px-3 py-1 bg-slate-800 rounded-lg">
+                <button
+                  onClick={() => setZoom(Math.max(50, zoom - 10))}
+                  className="p-1 hover:bg-slate-700 rounded"
+                >
+                  <ZoomOut className="w-4 h-4" />
+                </button>
+                <span className="text-sm px-2">{zoom}%</span>
+                <button
+                  onClick={() => setZoom(Math.min(200, zoom + 10))}
+                  className="p-1 hover:bg-slate-700 rounded"
+                >
+                  <ZoomIn className="w-4 h-4" />
+                </button>
+              </div>
+            )}
 
             {/* Annotation Tools */}
-            <div className="flex items-center space-x-2 px-3 py-1 bg-slate-800 rounded-lg">
-              <button
-                onClick={() => {
-                  setIsHighlighting(!isHighlighting)
-                  setIsAddingNote(false)
-                }}
-                className={`p-1 rounded ${isHighlighting ? 'bg-purple-600' : 'hover:bg-slate-700'}`}
-                title="Highlight"
-              >
-                <Highlighter className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => {
-                  setIsAddingNote(!isAddingNote)
-                  setIsHighlighting(false)
-                }}
-                className={`p-1 rounded ${isAddingNote ? 'bg-purple-600' : 'hover:bg-slate-700'}`}
-                title="Add Note"
-              >
-                <StickyNote className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Toggle Sidebar */}
-            <button
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="p-2 hover:bg-slate-800 rounded-lg"
-              title="Toggle Notes Panel"
-            >
-              <Menu className="w-5 h-5" />
-            </button>
+            {showTextbookTab && (
+              <div className="flex items-center space-x-2 px-3 py-1 bg-slate-800 rounded-lg">
+                <button
+                  onClick={() => {
+                    setIsHighlighting(!isHighlighting)
+                    setIsAddingNote(false)
+                  }}
+                  className={`p-1 rounded ${isHighlighting ? 'bg-purple-600' : 'hover:bg-slate-700'}`}
+                  title="Highlight"
+                >
+                  <Highlighter className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => {
+                    setIsAddingNote(!isAddingNote)
+                    setIsHighlighting(false)
+                  }}
+                  className={`p-1 rounded ${isAddingNote ? 'bg-purple-600' : 'hover:bg-slate-700'}`}
+                  title="Add Note"
+                >
+                  <StickyNote className="w-4 h-4" />
+                </button>
+              </div>
+            )}
 
             {onClose && (
               <button
@@ -435,184 +463,228 @@ export default function TextbookViewer({ textbookId, onClose }: { textbookId?: s
         </div>
       </div>
 
-      {/* Main Content Area */}
+      {/* Main Content Area with Tabs */}
       <div className="flex-1 overflow-hidden flex">
-        {/* PDF Viewer */}
-        <div 
-          className={`flex-1 overflow-hidden relative transition-all ${sidebarOpen ? 'mr-80' : ''}`}
-          ref={pdfContainerRef}
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={() => {
-            if (isHighlighting) {
-              selectionRef.current = null
-            }
-          }}
-        >
-          <div className="h-full overflow-auto bg-slate-900 p-8">
-            {loading && (
-              <div className="flex items-center justify-center h-full">
-                <Loader className="w-8 h-8 animate-spin text-purple-400" />
+        {/* Textbook Tab */}
+        {showTextbookTab && (
+          <motion.div
+            initial={{ width: showNotesTab ? '50%' : '100%' }}
+            animate={{ width: showNotesTab ? '50%' : '100%' }}
+            transition={{ duration: 0.3 }}
+            className="flex flex-col border-r border-slate-800"
+          >
+            {/* Tab Header */}
+            <div className="bg-slate-900/50 border-b border-slate-800 p-2 flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <BookOpen className="w-4 h-4 text-purple-400" />
+                <span className="text-sm font-medium">Textbook</span>
               </div>
-            )}
-            {selectedTextbook && (
-              <div style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'top center' }}>
-                <Document
-                  file={getPdfPath(selectedTextbook.filename)}
-                  onLoadSuccess={onDocumentLoadSuccess}
-                  onLoadError={onDocumentLoadError}
-                  loading={
-                    <div className="flex items-center justify-center py-20">
-                      <Loader className="w-8 h-8 animate-spin text-purple-400" />
-                    </div>
-                  }
-                  error={
-                    <div className="text-red-400 text-center py-20">
-                      Failed to load PDF. Please try again.
-                    </div>
-                  }
-                >
-                  {numPages && Array.from(new Array(numPages), (el, index) => (
-                    <div
-                      key={`page_${index + 1}`}
-                      ref={el => { pageRefs.current[index] = el }}
-                      className="mb-4 relative"
-                      onMouseUp={handleTextSelection}
-                    >
-                      <Page
-                        pageNumber={index + 1}
-                        scale={zoom / 100}
-                        renderTextLayer={true}
-                        renderAnnotationLayer={true}
-                        className="shadow-2xl"
-                      />
-                      
-                      {/* Highlights Overlay */}
-                      {showHighlights && highlights
-                        .filter(h => h.page === index + 1)
-                        .map((highlight) => (
-                          <div key={highlight.id} className="absolute inset-0 pointer-events-none">
-                            {highlight.rects.map((rect, rectIndex) => (
-                              <div
-                                key={rectIndex}
-                                className={`absolute ${colors[highlight.color as keyof typeof colors].bg} ${colors[highlight.color as keyof typeof colors].border} border-2 cursor-pointer`}
-                                style={{
-                                  left: `${rect.x}px`,
-                                  top: `${rect.y}px`,
-                                  width: `${rect.width}px`,
-                                  height: `${rect.height}px`,
-                                }}
-                                onDoubleClick={() => deleteHighlight(highlight.id)}
-                                title={highlight.text}
-                              />
-                            ))}
-                          </div>
-                        ))}
-                    </div>
-                  ))}
-                </Document>
-              </div>
-            )}
-
-            {/* Selection Rectangle for Highlighting */}
-            {isHighlighting && selectionRef.current && (
-              <div
-                className="absolute border-2 border-purple-500 bg-purple-500/20 pointer-events-none z-50"
-                style={{
-                  left: Math.min(selectionRef.current.startX, selectionRef.current.endX),
-                  top: Math.min(selectionRef.current.startY, selectionRef.current.endY),
-                  width: Math.abs(selectionRef.current.endX - selectionRef.current.startX),
-                  height: Math.abs(selectionRef.current.endY - selectionRef.current.startY),
-                }}
-              />
-            )}
-
-            {/* Highlight Selected Text Button */}
-            {selectedText && isHighlighting && (
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="fixed z-50 bg-slate-800 border border-slate-700 rounded-lg p-3 shadow-xl"
-                style={{
-                  top: selectionRef.current ? `${Math.min(selectionRef.current.startY, selectionRef.current.endY) - 50}px` : '50%',
-                  left: selectionRef.current ? `${Math.min(selectionRef.current.startX, selectionRef.current.endX)}px` : '50%',
-                }}
+              <button
+                onClick={() => setShowTextbookTab(false)}
+                className="p-1 hover:bg-slate-800 rounded"
+                title="Close Textbook Tab"
               >
-                <button
-                  onClick={() => {
-                    if (selectedText && selectionRef.current) {
-                      const { startX, startY, endX, endY } = selectionRef.current
-                      const x = Math.min(startX, endX)
-                      const y = Math.min(startY, endY)
-                      const width = Math.abs(endX - startX)
-                      const height = Math.abs(endY - startY)
+                <X className="w-4 h-4" />
+              </button>
+            </div>
 
-                      const pageElement = pageRefs.current[currentPage - 1]
-                      const pageRect = pageElement?.getBoundingClientRect()
-                      const containerRect = pdfContainerRef.current?.getBoundingClientRect()
-                      
-                      if (pageRect && containerRect) {
-                        const relativeX = (x - (pageRect.left - containerRect.left)) / (zoom / 100)
-                        const relativeY = (y - (pageRect.top - containerRect.top)) / (zoom / 100)
-                        const relativeWidth = width / (zoom / 100)
-                        const relativeHeight = height / (zoom / 100)
-
-                        const highlight: Highlight = {
-                          id: Date.now().toString(),
-                          page: currentPage,
-                          text: selectedText,
-                          rects: [{
-                            x: relativeX,
-                            y: relativeY,
-                            width: relativeWidth,
-                            height: relativeHeight
-                          }],
-                          color: highlightColor,
-                          createdAt: new Date().toISOString()
-                        }
-                        setHighlights([...highlights, highlight])
-                        setIsHighlighting(false)
-                        setSelectedText('')
-                        window.getSelection()?.removeAllRanges()
-                      }
-                    }
-                  }}
-                  className="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg text-sm font-medium flex items-center space-x-2"
-                >
-                  <Highlighter className="w-4 h-4" />
-                  <span>Highlight</span>
-                </button>
-              </motion.div>
-            )}
-          </div>
-        </div>
-
-        {/* Notes Sidebar */}
-        <AnimatePresence>
-          {sidebarOpen && (
-            <motion.div
-              initial={{ x: 320 }}
-              animate={{ x: 0 }}
-              exit={{ x: 320 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="w-80 bg-slate-900/95 backdrop-blur-xl border-l border-slate-800 flex flex-col fixed right-0 top-[73px] bottom-0 z-10"
-              style={{ height: 'calc(100vh - 73px)' }}
+            {/* PDF Viewer */}
+            <div 
+              className="flex-1 overflow-hidden relative"
+              ref={pdfContainerRef}
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={() => {
+                if (isHighlighting) {
+                  selectionRef.current = null
+                }
+              }}
             >
-              <div className="p-4 border-b border-slate-800 flex-shrink-0">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-semibold flex items-center">
-                    <StickyNote className="w-4 h-4 mr-2" />
-                    Notes & Highlights
-                  </h3>
-                  <button
-                    onClick={() => setSidebarOpen(false)}
-                    className="p-1 hover:bg-slate-800 rounded"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
+              <div className="h-full overflow-auto bg-slate-900 p-8">
+                {loading && (
+                  <div className="flex items-center justify-center h-full">
+                    <Loader className="w-8 h-8 animate-spin text-purple-400" />
+                  </div>
+                )}
+                {pdfError && (
+                  <div className="flex flex-col items-center justify-center h-full text-red-400">
+                    <p className="mb-4">{pdfError}</p>
+                    <button
+                      onClick={() => {
+                        setPdfError(null)
+                        setLoading(true)
+                      }}
+                      className="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg"
+                    >
+                      Retry
+                    </button>
+                  </div>
+                )}
+                {selectedTextbook && !pdfError && (
+                  <div style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'top center' }}>
+                    <Document
+                      file={getPdfPath(selectedTextbook.filename)}
+                      onLoadSuccess={onDocumentLoadSuccess}
+                      onLoadError={onDocumentLoadError}
+                      loading={
+                        <div className="flex items-center justify-center py-20">
+                          <Loader className="w-8 h-8 animate-spin text-purple-400" />
+                        </div>
+                      }
+                      error={
+                        <div className="text-red-400 text-center py-20">
+                          Failed to load PDF. Please check the file path.
+                        </div>
+                      }
+                      options={{
+                        cMapUrl: `https://unpkg.com/pdfjs-dist@${pdfjs.version}/cmaps/`,
+                        cMapPacked: true,
+                      }}
+                    >
+                      {numPages && Array.from(new Array(numPages), (el, index) => (
+                        <div
+                          key={`page_${index + 1}`}
+                          ref={el => { pageRefs.current[index] = el }}
+                          className="mb-4 relative"
+                          onMouseUp={handleTextSelection}
+                        >
+                          <Page
+                            pageNumber={index + 1}
+                            scale={zoom / 100}
+                            renderTextLayer={true}
+                            renderAnnotationLayer={true}
+                            className="shadow-2xl"
+                          />
+                          
+                          {/* Highlights Overlay */}
+                          {showHighlights && highlights
+                            .filter(h => h.page === index + 1)
+                            .map((highlight) => (
+                              <div key={highlight.id} className="absolute inset-0 pointer-events-none">
+                                {highlight.rects.map((rect, rectIndex) => (
+                                  <div
+                                    key={rectIndex}
+                                    className={`absolute ${colors[highlight.color as keyof typeof colors].bg} ${colors[highlight.color as keyof typeof colors].border} border-2 cursor-pointer`}
+                                    style={{
+                                      left: `${rect.x}px`,
+                                      top: `${rect.y}px`,
+                                      width: `${rect.width}px`,
+                                      height: `${rect.height}px`,
+                                    }}
+                                    onDoubleClick={() => deleteHighlight(highlight.id)}
+                                    title={highlight.text}
+                                  />
+                                ))}
+                              </div>
+                            ))}
+                        </div>
+                      ))}
+                    </Document>
+                  </div>
+                )}
 
+                {/* Selection Rectangle for Highlighting */}
+                {isHighlighting && selectionRef.current && (
+                  <div
+                    className="absolute border-2 border-purple-500 bg-purple-500/20 pointer-events-none z-50"
+                    style={{
+                      left: Math.min(selectionRef.current.startX, selectionRef.current.endX),
+                      top: Math.min(selectionRef.current.startY, selectionRef.current.endY),
+                      width: Math.abs(selectionRef.current.endX - selectionRef.current.startX),
+                      height: Math.abs(selectionRef.current.endY - selectionRef.current.startY),
+                    }}
+                  />
+                )}
+
+                {/* Highlight Selected Text Button */}
+                {selectedText && isHighlighting && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="fixed z-50 bg-slate-800 border border-slate-700 rounded-lg p-3 shadow-xl"
+                    style={{
+                      top: selectionRef.current ? `${Math.min(selectionRef.current.startY, selectionRef.current.endY) - 50}px` : '50%',
+                      left: selectionRef.current ? `${Math.min(selectionRef.current.startX, selectionRef.current.endX)}px` : '50%',
+                    }}
+                  >
+                    <button
+                      onClick={() => {
+                        if (selectedText && selectionRef.current) {
+                          const { startX, startY, endX, endY } = selectionRef.current
+                          const x = Math.min(startX, endX)
+                          const y = Math.min(startY, endY)
+                          const width = Math.abs(endX - startX)
+                          const height = Math.abs(endY - startY)
+
+                          const pageElement = pageRefs.current[currentPage - 1]
+                          const pageRect = pageElement?.getBoundingClientRect()
+                          const containerRect = pdfContainerRef.current?.getBoundingClientRect()
+                          
+                          if (pageRect && containerRect) {
+                            const relativeX = (x - (pageRect.left - containerRect.left)) / (zoom / 100)
+                            const relativeY = (y - (pageRect.top - containerRect.top)) / (zoom / 100)
+                            const relativeWidth = width / (zoom / 100)
+                            const relativeHeight = height / (zoom / 100)
+
+                            const highlight: Highlight = {
+                              id: Date.now().toString(),
+                              page: currentPage,
+                              text: selectedText,
+                              rects: [{
+                                x: relativeX,
+                                y: relativeY,
+                                width: relativeWidth,
+                                height: relativeHeight
+                              }],
+                              color: highlightColor,
+                              createdAt: new Date().toISOString()
+                            }
+                            setHighlights([...highlights, highlight])
+                            setIsHighlighting(false)
+                            setSelectedText('')
+                            window.getSelection()?.removeAllRanges()
+                          }
+                        }
+                      }}
+                      className="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg text-sm font-medium flex items-center space-x-2"
+                    >
+                      <Highlighter className="w-4 h-4" />
+                      <span>Highlight</span>
+                    </button>
+                  </motion.div>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Notes Tab */}
+        {showNotesTab && (
+          <motion.div
+            initial={{ width: showTextbookTab ? '50%' : '100%' }}
+            animate={{ width: showTextbookTab ? '50%' : '100%' }}
+            transition={{ duration: 0.3 }}
+            className="flex flex-col bg-slate-900/95 backdrop-blur-xl"
+          >
+            {/* Tab Header */}
+            <div className="bg-slate-900/50 border-b border-slate-800 p-2 flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <StickyNote className="w-4 h-4 text-purple-400" />
+                <span className="text-sm font-medium">Notes & Highlights</span>
+              </div>
+              <button
+                onClick={() => setShowNotesTab(false)}
+                className="p-1 hover:bg-slate-800 rounded"
+                title="Close Notes Tab"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Notes Content */}
+            <div className="flex-1 overflow-hidden flex flex-col">
+              <div className="p-4 border-b border-slate-800 flex-shrink-0">
                 {/* Color Picker */}
                 {(isHighlighting || isAddingNote) && (
                   <div className="mb-4">
@@ -841,9 +913,9 @@ export default function TextbookViewer({ textbookId, onClose }: { textbookId?: s
                   </div>
                 )}
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+            </div>
+          </motion.div>
+        )}
       </div>
     </div>
   )
