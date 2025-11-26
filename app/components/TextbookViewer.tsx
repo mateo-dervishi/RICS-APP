@@ -26,9 +26,9 @@ import {
 } from 'lucide-react'
 import { ricsTextbooks, RICSTextbook, getTextbookById } from '../data/ricsTextbooks'
 
-// Configure PDF.js worker
+// Configure PDF.js worker - use local worker file
 if (typeof window !== 'undefined') {
-  pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`
+  pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js'
 }
 
 interface Note {
