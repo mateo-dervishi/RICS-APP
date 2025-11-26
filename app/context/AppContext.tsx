@@ -62,7 +62,17 @@ interface TimelineMilestone {
   description?: string
 }
 
+interface AuthState {
+  isAuthenticated: boolean
+  user: {
+    email: string
+    name: string
+    profilePicture?: string | null
+  } | null
+}
+
 interface AppState {
+  auth: AuthState
   profile: UserProfile
   competencies: CompetencyProgress
   experience: ExperienceEntry[]
@@ -75,6 +85,10 @@ interface AppState {
 
 interface AppContextType {
   state: AppState
+  login: (email: string, password: string) => Promise<boolean>
+  signup: (email: string, password: string, name: string) => Promise<boolean>
+  logout: () => void
+  updateProfilePicture: (imageUrl: string) => void
   updateProfile: (profile: Partial<UserProfile>) => void
   updateCompetency: (id: string, level: number, evidence?: string[]) => void
   addExperience: (entry: Omit<ExperienceEntry, 'id'>) => void
@@ -102,6 +116,10 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined)
 
 const initialState: AppState = {
+  auth: {
+    isAuthenticated: false,
+    user: null
+  },
   profile: {
     currentLevel: 'student',
   },
@@ -119,19 +137,123 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Load from localStorage on mount
   useEffect(() => {
     const saved = localStorage.getItem('rics-app-state')
+    const authSaved = localStorage.getItem('rics-auth-state')
+    
     if (saved) {
       try {
-        setState(JSON.parse(saved))
+        const parsedState = JSON.parse(saved)
+        setState(prev => ({ ...prev, ...parsedState, auth: prev.auth }))
       } catch (e) {
         console.error('Failed to load state:', e)
+      }
+    }
+    
+    if (authSaved) {
+      try {
+        const authState = JSON.parse(authSaved)
+        setState(prev => ({ ...prev, auth: authState }))
+      } catch (e) {
+        console.error('Failed to load auth state:', e)
       }
     }
   }, [])
 
   // Save to localStorage on change
   useEffect(() => {
-    localStorage.setItem('rics-app-state', JSON.stringify(state))
+    const { auth, ...appState } = state
+    localStorage.setItem('rics-app-state', JSON.stringify(appState))
+    localStorage.setItem('rics-auth-state', JSON.stringify(auth))
   }, [state])
+
+  const login = async (email: string, password: string): Promise<boolean> => {
+    // In a real app, this would call an API
+    // For demo, we'll check localStorage for existing users or create a new session
+    const users = JSON.parse(localStorage.getItem('rics-users') || '[]')
+    const user = users.find((u: any) => u.email === email && u.password === password)
+    
+    if (user || email && password) {
+      // Create or update session
+      const sessionUser = user || {
+        email,
+        name: email.split('@')[0],
+        profilePicture: null
+      }
+      
+      setState(prev => ({
+        ...prev,
+        auth: {
+          isAuthenticated: true,
+          user: sessionUser
+        }
+      }))
+      return true
+    }
+    return false
+  }
+
+  const signup = async (email: string, password: string, name: string): Promise<boolean> => {
+    // In a real app, this would call an API
+    const users = JSON.parse(localStorage.getItem('rics-users') || '[]')
+    
+    // Check if user already exists
+    if (users.some((u: any) => u.email === email)) {
+      return false
+    }
+    
+    // Create new user
+    const newUser = {
+      email,
+      name,
+      password, // In production, this would be hashed
+      profilePicture: null
+    }
+    
+    users.push(newUser)
+    localStorage.setItem('rics-users', JSON.stringify(users))
+    
+    // Auto-login after signup
+    setState(prev => ({
+      ...prev,
+      auth: {
+        isAuthenticated: true,
+        user: {
+          email,
+          name,
+          profilePicture: null
+        }
+      }
+    }))
+    
+    return true
+  }
+
+  const logout = () => {
+    setState(prev => ({
+      ...prev,
+      auth: {
+        isAuthenticated: false,
+        user: null
+      }
+    }))
+    localStorage.removeItem('rics-auth-state')
+  }
+
+  const updateProfilePicture = (imageUrl: string) => {
+    if (state.auth.user) {
+      const updatedUser = {
+        ...state.auth.user,
+        profilePicture: imageUrl
+      }
+      setState(prev => ({
+        ...prev,
+        auth: {
+          ...prev.auth,
+          user: updatedUser
+        }
+      }))
+      localStorage.setItem('profile-picture', imageUrl)
+    }
+  }
 
   const updateProfile = (profile: Partial<UserProfile>) => {
     setState(prev => ({
@@ -394,6 +516,10 @@ TOTAL HOURS: [Total]`
     <AppContext.Provider
       value={{
         state,
+        login,
+        signup,
+        logout,
+        updateProfilePicture,
         updateProfile,
         updateCompetency,
         addExperience,

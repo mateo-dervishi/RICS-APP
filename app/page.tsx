@@ -18,13 +18,26 @@ import Network from './components/Network'
 import Analytics from './components/Analytics'
 import Settings from './components/Settings'
 import RICSAgent from './components/RICSAgent'
+import LoginGateway from './components/LoginGateway'
+import { useApp } from './context/AppContext'
 
 export default function Home() {
+  const { state, login, signup } = useApp()
   const [currentView, setCurrentView] = useState<string>('dashboard')
   const [userProfile, setUserProfile] = useState({
     currentLevel: 'student',
     selectedPathway: undefined as string | undefined
   })
+
+  // Show login gateway if not authenticated
+  if (!state.auth.isAuthenticated) {
+    return (
+      <LoginGateway 
+        onLogin={login}
+        onSignup={signup}
+      />
+    )
+  }
 
   const renderView = () => {
     switch (currentView) {

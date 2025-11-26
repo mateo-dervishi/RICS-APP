@@ -21,6 +21,7 @@ import {
   Settings
 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
+import ProfilePicture from './ProfilePicture'
 
 interface DashboardProps {
   currentLevel: string
@@ -29,7 +30,7 @@ interface DashboardProps {
 }
 
 export default function Dashboard({ currentLevel, selectedPathway, onNavigate }: DashboardProps) {
-  const { state, calculateProgress } = useApp()
+  const { state, calculateProgress, logout, updateProfilePicture } = useApp()
   const progress = calculateProgress()
   
   const handleModuleClick = (moduleId: string) => {
@@ -80,12 +81,19 @@ export default function Dashboard({ currentLevel, selectedPathway, onNavigate }:
                 <div className="text-sm text-gray-400">Current Level</div>
                 <div className="font-semibold capitalize">{currentLevel || 'Not Set'}</div>
               </div>
-              <button 
-                onClick={() => handleModuleClick('settings')}
-                className="p-2 bg-slate-800 hover:bg-slate-700 rounded-lg"
-              >
-                <Settings className="w-5 h-5" />
-              </button>
+              <div className="flex items-center space-x-3">
+                <ProfilePicture 
+                  size="md" 
+                  initialImage={state.auth.user?.profilePicture || null}
+                  onImageChange={updateProfilePicture}
+                />
+                <button 
+                  onClick={() => handleModuleClick('settings')}
+                  className="p-2 bg-slate-800 hover:bg-slate-700 rounded-lg"
+                >
+                  <Settings className="w-5 h-5" />
+                </button>
+              </div>
             </div>
           </div>
         </div>

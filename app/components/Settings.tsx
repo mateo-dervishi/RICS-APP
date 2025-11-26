@@ -23,15 +23,16 @@ import {
   Shield
 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
+import ProfilePicture from './ProfilePicture'
 
 export default function Settings() {
-  const { state, updateProfile } = useApp()
+  const { state, updateProfile, logout, updateProfilePicture } = useApp()
   const [activeTab, setActiveTab] = useState('profile')
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   
   const [profileSettings, setProfileSettings] = useState({
-    name: 'John Smith',
-    email: 'john.smith@example.com',
+    name: state.auth.user?.name || 'John Smith',
+    email: state.auth.user?.email || 'john.smith@example.com',
     phone: '',
     location: '',
     organization: '',
@@ -174,6 +175,22 @@ export default function Settings() {
               <User className="w-5 h-5 mr-2" />
               Profile Information
             </h3>
+            
+            {/* Profile Picture */}
+            <div className="mb-6 pb-6 border-b border-slate-700">
+              <label className="block text-sm font-medium mb-4">Profile Picture</label>
+              <div className="flex items-center space-x-4">
+                <ProfilePicture 
+                  size="lg"
+                  initialImage={state.auth.user?.profilePicture || null}
+                  onImageChange={updateProfilePicture}
+                />
+                <div>
+                  <p className="text-sm text-gray-400 mb-1">Click to upload or change your profile picture</p>
+                  <p className="text-xs text-gray-500">Recommended: Square image, max 5MB</p>
+                </div>
+              </div>
+            </div>
             
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -593,6 +610,18 @@ export default function Settings() {
                   <button className="w-full px-4 py-3 bg-slate-700/50 hover:bg-slate-700 rounded-lg text-left">
                     <div className="font-medium">Download Account Data</div>
                     <div className="text-sm text-gray-400">Get a copy of all your account data</div>
+                  </button>
+                  <button 
+                    onClick={() => {
+                      logout()
+                      if (typeof window !== 'undefined') {
+                        window.location.reload()
+                      }
+                    }}
+                    className="w-full px-4 py-3 bg-orange-600/20 hover:bg-orange-600/30 border border-orange-500/50 rounded-lg text-left text-orange-400"
+                  >
+                    <div className="font-medium">Logout</div>
+                    <div className="text-sm">Sign out of your account</div>
                   </button>
                   <button className="w-full px-4 py-3 bg-red-600/20 hover:bg-red-600/30 border border-red-500/50 rounded-lg text-left text-red-400">
                     <div className="font-medium">Delete Account</div>
