@@ -31,6 +31,21 @@ export default function Home() {
     selectedPathway: undefined as string | undefined
   })
 
+  // Listen for navigation events from components
+  React.useEffect(() => {
+    const handleNavigate = (event: CustomEvent) => {
+      const view = event.detail
+      if (view) {
+        setCurrentView(view)
+      }
+    }
+
+    window.addEventListener('navigateTo', handleNavigate as EventListener)
+    return () => {
+      window.removeEventListener('navigateTo', handleNavigate as EventListener)
+    }
+  }, [])
+
   // Show login gateway if not authenticated
   if (!state.auth.isAuthenticated) {
     return (

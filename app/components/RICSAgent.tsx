@@ -212,7 +212,13 @@ export default function RICSAgent() {
             </p>
           </div>
           <button
-            onClick={() => setShowTextbooks(!showTextbooks)}
+            onClick={() => {
+              // Navigate to textbooks view
+              if (typeof window !== 'undefined') {
+                const event = new CustomEvent('navigateTo', { detail: 'textbooks' })
+                window.dispatchEvent(event)
+              }
+            }}
             className="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg flex items-center space-x-2"
           >
             <BookOpen className="w-4 h-4" />

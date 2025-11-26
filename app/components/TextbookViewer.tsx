@@ -489,7 +489,8 @@ export default function TextbookViewer({ textbookId, onClose }: { textbookId?: s
               animate={{ x: 0 }}
               exit={{ x: 320 }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="w-80 bg-slate-900/95 backdrop-blur-xl border-l border-slate-800 flex flex-col absolute right-0 top-0 bottom-0 z-10"
+              className="w-80 bg-slate-900/95 backdrop-blur-xl border-l border-slate-800 flex flex-col fixed right-0 top-[73px] bottom-0 z-10"
+              style={{ height: 'calc(100vh - 73px)' }}
             >
               <div className="p-4 border-b border-slate-800 flex-shrink-0">
                 <div className="flex items-center justify-between mb-4">
