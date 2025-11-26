@@ -38,8 +38,15 @@ export default function Dashboard({ currentLevel, selectedPathway, onNavigate }:
     }
   }
 
-  const modules = [
+  const modules: Array<{
+    id: string
+    name: string
+    icon: any
+    color: string
+    featured?: boolean
+  }> = [
     { id: 'pathway-advisor', name: 'Pathway Advisor', icon: Sparkles, color: 'from-purple-500 to-pink-500' },
+    { id: 'rics-agent', name: 'RICS Agent', icon: Sparkles, color: 'from-indigo-500 to-purple-500', featured: true },
     { id: 'student', name: 'Student Module', icon: GraduationCap, color: 'from-blue-500 to-cyan-500' },
     { id: 'academic', name: 'Academic Assessment', icon: BookOpen, color: 'from-green-500 to-emerald-500' },
     { id: 'assocrics', name: 'AssocRICS', icon: Briefcase, color: 'from-yellow-500 to-amber-500' },
@@ -147,11 +154,39 @@ export default function Dashboard({ currentLevel, selectedPathway, onNavigate }:
           ))}
         </div>
 
+        {/* Featured Module */}
+        {modules.find(m => m.featured) && (
+          <div className="mb-6">
+            <h2 className="text-2xl font-semibold mb-4">Featured</h2>
+            {(() => {
+              const featured = modules.find(m => m.featured)!
+              return (
+                <motion.button
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  onClick={() => handleModuleClick(featured.id)}
+                  className="w-full group bg-gradient-to-br from-indigo-900/50 to-purple-900/50 backdrop-blur-sm border-2 border-purple-500/50 rounded-xl p-8 hover:border-purple-500 transition-all text-left"
+                >
+                  <div className="flex items-center space-x-4">
+                    <div className={`w-16 h-16 rounded-lg bg-gradient-to-br ${featured.color} flex items-center justify-center group-hover:scale-110 transition-transform`}>
+                      <featured.icon className="w-8 h-8 text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-2xl font-bold mb-2">{featured.name}</h3>
+                      <p className="text-gray-300">Ask questions about RICS practices and procedures using official RICS textbooks</p>
+                    </div>
+                  </div>
+                </motion.button>
+              )
+            })()}
+          </div>
+        )}
+
         {/* Module Grid */}
         <div className="mb-6">
           <h2 className="text-2xl font-semibold mb-4">Modules & Features</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {modules.map((module, index) => (
+            {modules.filter(m => !m.featured).map((module, index) => (
               <motion.button
                 key={module.id}
                 initial={{ opacity: 0, scale: 0.9 }}

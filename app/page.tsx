@@ -17,6 +17,7 @@ import AssessmentPrep from './components/AssessmentPrep'
 import Network from './components/Network'
 import Analytics from './components/Analytics'
 import Settings from './components/Settings'
+import RICSAgent from './components/RICSAgent'
 
 export default function Home() {
   const [currentView, setCurrentView] = useState<string>('dashboard')
@@ -65,6 +66,8 @@ export default function Home() {
         return <Analytics />
       case 'settings':
         return <Settings />
+      case 'rics-agent':
+        return <RICSAgent />
       default:
         return (
           <Dashboard
