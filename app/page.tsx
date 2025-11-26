@@ -16,6 +16,7 @@ import DocumentsCenter from './components/DocumentsCenter'
 import AssessmentPrep from './components/AssessmentPrep'
 import Network from './components/Network'
 import Analytics from './components/Analytics'
+import Settings from './components/Settings'
 
 export default function Home() {
   const [currentView, setCurrentView] = useState<string>('dashboard')
@@ -62,6 +63,8 @@ export default function Home() {
         return <Network />
       case 'analytics':
         return <Analytics />
+      case 'settings':
+        return <Settings />
       default:
         return (
           <Dashboard

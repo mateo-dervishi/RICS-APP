@@ -11,6 +11,10 @@ export default function DocumentsCenter() {
   const [activeTab, setActiveTab] = useState('templates')
   const [selectedDoc, setSelectedDoc] = useState<string | null>(null)
   const [editingContent, setEditingContent] = useState('')
+  const [aiDocumentType, setAiDocumentType] = useState('summary')
+  const [aiPrompt, setAiPrompt] = useState('')
+  const [aiGeneratedContent, setAiGeneratedContent] = useState('')
+  const [isGenerating, setIsGenerating] = useState(false)
 
   const tabs = [
     { id: 'templates', name: 'Templates', icon: FileText },
@@ -327,41 +331,127 @@ export default function DocumentsCenter() {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-slate-800/50 border border-slate-700 rounded-xl p-6"
+            className="space-y-6"
           >
-            <h3 className="text-xl font-semibold mb-4 flex items-center">
-              <Sparkles className="w-6 h-6 mr-2 text-purple-400" />
-              AI Writing Assistant
-            </h3>
-            <p className="text-gray-400 mb-6">
-              Get AI-powered assistance for writing competency statements, experience descriptions, and more
-            </p>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-semibold mb-2">Document Type</label>
-                <select className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg">
-                  <option>Summary of Experience</option>
-                  <option>Case Study</option>
-                  <option>Competency Statement</option>
-                  <option>CPD Reflective Statement</option>
-                </select>
-              </div>
+            <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-6">
+              <h3 className="text-xl font-semibold mb-4 flex items-center">
+                <Sparkles className="w-6 h-6 mr-2 text-purple-400" />
+                AI Writing Assistant
+              </h3>
+              <p className="text-gray-400 mb-6">
+                Get AI-powered assistance for writing competency statements, experience descriptions, and more
+              </p>
               
-              <div>
-                <label className="block text-sm font-semibold mb-2">What would you like help with?</label>
-                <textarea
-                  className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg"
-                  rows={6}
-                  placeholder="Describe what you need help writing..."
-                />
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-semibold mb-2">Document Type</label>
+                  <select 
+                    value={aiDocumentType}
+                    onChange={(e) => setAiDocumentType(e.target.value)}
+                    className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg focus:outline-none focus:border-purple-500"
+                  >
+                    <option value="summary">Summary of Experience</option>
+                    <option value="case-study">Case Study</option>
+                    <option value="competency">Competency Statement</option>
+                    <option value="cpd">CPD Reflective Statement</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-semibold mb-2">What would you like help with?</label>
+                  <textarea
+                    value={aiPrompt}
+                    onChange={(e) => setAiPrompt(e.target.value)}
+                    className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg focus:outline-none focus:border-purple-500"
+                    rows={6}
+                    placeholder="Describe what you need help writing... (e.g., 'Write a competency statement for Ethics demonstrating Level 2 achievement with examples from my project work')"
+                  />
+                </div>
+                
+                <button 
+                  onClick={async () => {
+                    if (!aiPrompt.trim()) {
+                      alert('Please enter a description of what you need help with')
+                      return
+                    }
+                    setIsGenerating(true)
+                    // Simulate AI generation
+                    await new Promise(resolve => setTimeout(resolve, 2000))
+                    
+                    // Generate sample content based on document type
+                    let generated = ''
+                    if (aiDocumentType === 'summary') {
+                      generated = `Based on your request, here's a draft for your Summary of Experience:\n\n[Your content would be generated here based on your prompt and existing data]\n\nThis is a template that would be populated with AI-generated content relevant to your specific requirements. The AI would analyze your experience entries, competencies, and the details you provided to create personalized content.`
+                    } else if (aiDocumentType === 'case-study') {
+                      generated = `Case Study Draft:\n\n[AI-generated case study content based on your project experience and prompt]\n\nThe AI would structure this according to RICS requirements, incorporating your project details, competencies demonstrated, and lessons learned.`
+                    } else if (aiDocumentType === 'competency') {
+                      generated = `Competency Statement:\n\n[AI-generated competency statement demonstrating the required levels]\n\nThis would be tailored to show Level 1, 2, and 3 achievement with specific examples from your experience diary.`
+                    } else {
+                      generated = `CPD Reflective Statement:\n\n[AI-generated reflective statement]\n\nThis would reflect on your CPD activities and demonstrate learning outcomes.`
+                    }
+                    
+                    setAiGeneratedContent(generated)
+                    setIsGenerating(false)
+                  }}
+                  disabled={isGenerating}
+                  className="w-full px-6 py-3 bg-purple-600 hover:bg-purple-700 rounded-lg font-semibold flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isGenerating ? (
+                    <>
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                      <span>Generating...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-5 h-5 mr-2" />
+                      <span>Generate Content</span>
+                    </>
+                  )}
+                </button>
               </div>
-              
-              <button className="w-full px-6 py-3 bg-purple-600 hover:bg-purple-700 rounded-lg font-semibold flex items-center justify-center">
-                <Sparkles className="w-5 h-5 mr-2" />
-                Generate Content
-              </button>
             </div>
+
+            {aiGeneratedContent && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-slate-800/50 border border-slate-700 rounded-xl p-6"
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="font-semibold">Generated Content</h4>
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={() => {
+                        const docId = createDocument(aiDocumentType, `AI Generated ${aiDocumentType}`)
+                        updateDocument(docId, aiGeneratedContent)
+                        setAiGeneratedContent('')
+                        setAiPrompt('')
+                        setActiveTab('my-documents')
+                        setSelectedDoc(docId)
+                      }}
+                      className="px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg font-semibold text-sm"
+                    >
+                      Save as Document
+                    </button>
+                    <button
+                      onClick={() => setAiGeneratedContent('')}
+                      className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+                <div className="bg-slate-900/50 rounded-lg p-4 max-h-96 overflow-y-auto">
+                  <pre className="whitespace-pre-wrap text-sm text-gray-300 font-mono">
+                    {aiGeneratedContent}
+                  </pre>
+                </div>
+                <div className="mt-4 text-xs text-gray-500 flex items-center space-x-2">
+                  <AlertCircle className="w-4 h-4" />
+                  <span>This is a demonstration. In a production environment, this would use actual AI to generate personalized content based on your data.</span>
+                </div>
+              </motion.div>
+            )}
           </motion.div>
         )}
       </div>

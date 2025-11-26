@@ -73,7 +73,10 @@ export default function Dashboard({ currentLevel, selectedPathway, onNavigate }:
                 <div className="text-sm text-gray-400">Current Level</div>
                 <div className="font-semibold capitalize">{currentLevel || 'Not Set'}</div>
               </div>
-              <button className="p-2 bg-slate-800 hover:bg-slate-700 rounded-lg">
+              <button 
+                onClick={() => handleModuleClick('settings')}
+                className="p-2 bg-slate-800 hover:bg-slate-700 rounded-lg"
+              >
                 <Settings className="w-5 h-5" />
               </button>
             </div>
