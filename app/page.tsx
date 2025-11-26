@@ -20,7 +20,11 @@ import Settings from './components/Settings'
 import RICSAgent from './components/RICSAgent'
 import LoginGateway from './components/LoginGateway'
 import AppLayout from './components/AppLayout'
-import TextbookViewer from './components/TextbookViewer'
+import dynamic from 'next/dynamic'
+
+const TextbookViewer = dynamic(() => import('./components/TextbookViewer'), {
+  ssr: false
+})
 import { useApp } from './context/AppContext'
 
 export default function Home() {

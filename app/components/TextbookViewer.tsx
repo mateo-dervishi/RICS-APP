@@ -2,6 +2,9 @@
 
 import React, { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { Document, Page, pdfjs } from 'react-pdf'
+import 'react-pdf/dist/Page/AnnotationLayer.css'
+import 'react-pdf/dist/Page/TextLayer.css'
 import {
   BookOpen,
   X,
@@ -14,32 +17,34 @@ import {
   StickyNote,
   Save,
   Trash2,
-  Search,
-  Download,
   Menu,
   Edit2,
-  Plus
+  Plus,
+  Type,
+  Loader
 } from 'lucide-react'
 import { ricsTextbooks, RICSTextbook, getTextbookById } from '../data/ricsTextbooks'
+
+// Configure PDF.js worker
+if (typeof window !== 'undefined') {
+  pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`
+}
 
 interface Note {
   id: string
   page: number
-  x: number
-  y: number
-  text: string
+  title: string
+  content: string
   color: string
   createdAt: string
+  updatedAt: string
 }
 
 interface Highlight {
   id: string
   page: number
   text: string
-  x: number
-  y: number
-  width: number
-  height: number
+  rects: Array<{ x: number; y: number; width: number; height: number }>
   color: string
   createdAt: string
 }
@@ -56,6 +61,7 @@ export default function TextbookViewer({ textbookId, onClose }: { textbookId?: s
     textbookId ? getTextbookById(textbookId) || null : null
   )
   const [showLibrary, setShowLibrary] = useState(!textbookId)
+  const [numPages, setNumPages] = useState<number | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
   const [zoom, setZoom] = useState(100)
   const [notes, setNotes] = useState<Note[]>([])
@@ -65,21 +71,23 @@ export default function TextbookViewer({ textbookId, onClose }: { textbookId?: s
   const [isAddingNote, setIsAddingNote] = useState(false)
   const [isHighlighting, setIsHighlighting] = useState(false)
   const [selectedText, setSelectedText] = useState('')
-  const [newNoteText, setNewNoteText] = useState('')
+  const [newNoteTitle, setNewNoteTitle] = useState('')
+  const [newNoteContent, setNewNoteContent] = useState('')
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
   const [highlightColor, setHighlightColor] = useState('yellow')
   const [noteColor, setNoteColor] = useState('yellow')
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [loading, setLoading] = useState(false)
   const pdfContainerRef = useRef<HTMLDivElement>(null)
-  const iframeRef = useRef<HTMLIFrameElement>(null)
-  const selectionRef = useRef<{ startX: number; startY: number; endX: number; endY: number } | null>(null)
+  const pageRefs = useRef<(HTMLDivElement | null)[]>([])
+  const selectionRef = useRef<{ startX: number; startY: number; endX: number; endY: number; text: string } | null>(null)
 
   const colors = {
-    yellow: 'bg-yellow-400/30 border-yellow-400',
-    green: 'bg-green-400/30 border-green-400',
-    blue: 'bg-blue-400/30 border-blue-400',
-    pink: 'bg-pink-400/30 border-pink-400',
-    purple: 'bg-purple-400/30 border-purple-400'
+    yellow: { bg: 'bg-yellow-400/30', border: 'border-yellow-400', text: 'text-yellow-400' },
+    green: { bg: 'bg-green-400/30', border: 'border-green-400', text: 'text-green-400' },
+    blue: { bg: 'bg-blue-400/30', border: 'border-blue-400', text: 'text-blue-400' },
+    pink: { bg: 'bg-pink-400/30', border: 'border-pink-400', text: 'text-pink-400' },
+    purple: { bg: 'bg-purple-400/30', border: 'border-purple-400', text: 'text-purple-400' }
   }
 
   // Listen for openTextbook events from RICS Agent
@@ -137,9 +145,30 @@ export default function TextbookViewer({ textbookId, onClose }: { textbookId?: s
     setSelectedTextbook(textbook)
     setShowLibrary(false)
     setCurrentPage(1)
+    setLoading(true)
   }
 
-  // Improved highlighting with mouse selection
+  const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
+    setNumPages(numPages)
+    setLoading(false)
+  }
+
+  const onDocumentLoadError = (error: Error) => {
+    console.error('Error loading PDF:', error)
+    setLoading(false)
+  }
+
+  // Handle text selection for highlighting
+  const handleTextSelection = () => {
+    const selection = window.getSelection()
+    if (selection && selection.toString().trim()) {
+      setSelectedText(selection.toString().trim())
+    } else {
+      setSelectedText('')
+    }
+  }
+
+  // Handle mouse events for highlighting
   const handleMouseDown = (e: React.MouseEvent) => {
     if (!isHighlighting) return
     const rect = pdfContainerRef.current?.getBoundingClientRect()
@@ -148,7 +177,8 @@ export default function TextbookViewer({ textbookId, onClose }: { textbookId?: s
         startX: e.clientX - rect.left,
         startY: e.clientY - rect.top,
         endX: e.clientX - rect.left,
-        endY: e.clientY - rect.top
+        endY: e.clientY - rect.top,
+        text: ''
       }
     }
   }
@@ -176,45 +206,61 @@ export default function TextbookViewer({ textbookId, onClose }: { textbookId?: s
       const height = Math.abs(endY - startY)
 
       if (width > 10 && height > 10) {
-        const highlight: Highlight = {
-          id: Date.now().toString(),
-          page: currentPage,
-          text: text,
-          x: x / (zoom / 100),
-          y: y / (zoom / 100),
-          width: width / (zoom / 100),
-          height: height / (zoom / 100),
-          color: highlightColor,
-          createdAt: new Date().toISOString()
+        // Get the page element to calculate relative position
+        const pageElement = pageRefs.current[currentPage - 1]
+        const pageRect = pageElement?.getBoundingClientRect()
+        const containerRect = pdfContainerRef.current?.getBoundingClientRect()
+        
+        if (pageRect && containerRect) {
+          const relativeX = (x - (pageRect.left - containerRect.left)) / (zoom / 100)
+          const relativeY = (y - (pageRect.top - containerRect.top)) / (zoom / 100)
+          const relativeWidth = width / (zoom / 100)
+          const relativeHeight = height / (zoom / 100)
+
+          const highlight: Highlight = {
+            id: Date.now().toString(),
+            page: currentPage,
+            text: text,
+            rects: [{
+              x: relativeX,
+              y: relativeY,
+              width: relativeWidth,
+              height: relativeHeight
+            }],
+            color: highlightColor,
+            createdAt: new Date().toISOString()
+          }
+          setHighlights([...highlights, highlight])
+          setIsHighlighting(false)
         }
-        setHighlights([...highlights, highlight])
-        setIsHighlighting(false)
       }
     }
     
     selectionRef.current = null
     if (selection) selection.removeAllRanges()
+    setSelectedText('')
   }
 
   const addNote = () => {
-    if (!selectedTextbook || !newNoteText.trim()) return
+    if (!selectedTextbook || !newNoteTitle.trim() || !newNoteContent.trim()) return
     
     const note: Note = {
       id: Date.now().toString(),
       page: currentPage,
-      x: 0,
-      y: 0,
-      text: newNoteText.trim(),
+      title: newNoteTitle.trim(),
+      content: newNoteContent.trim(),
       color: noteColor,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     }
     setNotes([...notes, note])
-    setNewNoteText('')
+    setNewNoteTitle('')
+    setNewNoteContent('')
     setIsAddingNote(false)
   }
 
-  const updateNote = (id: string, text: string) => {
-    setNotes(notes.map(n => n.id === id ? { ...n, text } : n))
+  const updateNote = (id: string, title: string, content: string) => {
+    setNotes(notes.map(n => n.id === id ? { ...n, title, content, updatedAt: new Date().toISOString() } : n))
     setEditingNoteId(null)
   }
 
@@ -316,11 +362,12 @@ export default function TextbookViewer({ textbookId, onClose }: { textbookId?: s
                 <ChevronLeft className="w-4 h-4" />
               </button>
               <span className="text-sm px-2">
-                Page {currentPage}
+                Page {currentPage} {numPages && `of ${numPages}`}
               </span>
               <button
-                onClick={() => setCurrentPage(currentPage + 1)}
-                className="p-1 hover:bg-slate-700 rounded"
+                onClick={() => setCurrentPage(Math.min(numPages || 1, currentPage + 1))}
+                disabled={currentPage >= (numPages || 1)}
+                className="p-1 hover:bg-slate-700 rounded disabled:opacity-50"
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
@@ -397,87 +444,147 @@ export default function TextbookViewer({ textbookId, onClose }: { textbookId?: s
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
+          onMouseLeave={() => {
+            if (isHighlighting) {
+              selectionRef.current = null
+            }
+          }}
         >
-          <div className="h-full overflow-auto bg-slate-900">
-            <div
-              className="p-8"
-              style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'top left' }}
-            >
-              {/* PDF Display */}
-              <div className="bg-white shadow-2xl mx-auto" style={{ maxWidth: '800px', minHeight: '1200px' }}>
-                <iframe
-                  ref={iframeRef}
-                  src={`${getPdfPath(selectedTextbook.filename)}#page=${currentPage}&zoom=${zoom}`}
-                  className="w-full"
-                  style={{ height: '1200px', border: 'none', minHeight: '1200px' }}
-                  title={selectedTextbook.title}
-                />
+          <div className="h-full overflow-auto bg-slate-900 p-8">
+            {loading && (
+              <div className="flex items-center justify-center h-full">
+                <Loader className="w-8 h-8 animate-spin text-purple-400" />
               </div>
-
-              {/* Selection Rectangle for Highlighting */}
-              {isHighlighting && selectionRef.current && (
-                <div
-                  className="absolute border-2 border-purple-500 bg-purple-500/20 pointer-events-none"
-                  style={{
-                    left: Math.min(selectionRef.current.startX, selectionRef.current.endX),
-                    top: Math.min(selectionRef.current.startY, selectionRef.current.endY),
-                    width: Math.abs(selectionRef.current.endX - selectionRef.current.startX),
-                    height: Math.abs(selectionRef.current.endY - selectionRef.current.startY),
-                  }}
-                />
-              )}
-
-              {/* Highlights Overlay */}
-              {showHighlights && currentPageHighlights.map((highlight) => (
-                <div
-                  key={highlight.id}
-                  className={`absolute border-2 ${colors[highlight.color as keyof typeof colors]} pointer-events-auto cursor-pointer`}
-                  style={{
-                    left: highlight.x * (zoom / 100),
-                    top: highlight.y * (zoom / 100),
-                    width: highlight.width * (zoom / 100),
-                    height: highlight.height * (zoom / 100),
-                  }}
-                  onDoubleClick={() => deleteHighlight(highlight.id)}
-                  title={highlight.text}
-                >
-                  <button
-                    onClick={() => deleteHighlight(highlight.id)}
-                    className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity z-10"
-                  >
-                    <X className="w-3 h-3 text-white" />
-                  </button>
-                </div>
-              ))}
-
-              {/* Notes Overlay */}
-              {showNotes && currentPageNotes.map((note) => (
-                <div
-                  key={note.id}
-                  className="absolute pointer-events-auto"
-                  style={{
-                    left: note.x * (zoom / 100),
-                    top: note.y * (zoom / 100),
-                  }}
-                >
-                  <div className={`w-64 p-3 rounded-lg border-2 ${colors[note.color as keyof typeof colors]} bg-slate-900 shadow-lg`}>
-                    <div className="flex items-start justify-between mb-2">
-                      <StickyNote className={`w-4 h-4 ${note.color === 'yellow' ? 'text-yellow-400' : note.color === 'green' ? 'text-green-400' : note.color === 'blue' ? 'text-blue-400' : note.color === 'pink' ? 'text-pink-400' : 'text-purple-400'}`} />
-                      <button
-                        onClick={() => deleteNote(note.id)}
-                        className="p-1 hover:bg-slate-800 rounded"
-                      >
-                        <Trash2 className="w-3 h-3 text-red-400" />
-                      </button>
+            )}
+            {selectedTextbook && (
+              <div style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'top center' }}>
+                <Document
+                  file={getPdfPath(selectedTextbook.filename)}
+                  onLoadSuccess={onDocumentLoadSuccess}
+                  onLoadError={onDocumentLoadError}
+                  loading={
+                    <div className="flex items-center justify-center py-20">
+                      <Loader className="w-8 h-8 animate-spin text-purple-400" />
                     </div>
-                    <p className="text-sm text-white">{note.text}</p>
-                    <p className="text-xs text-gray-400 mt-2">
-                      {new Date(note.createdAt).toLocaleDateString()}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
+                  }
+                  error={
+                    <div className="text-red-400 text-center py-20">
+                      Failed to load PDF. Please try again.
+                    </div>
+                  }
+                >
+                  {numPages && Array.from(new Array(numPages), (el, index) => (
+                    <div
+                      key={`page_${index + 1}`}
+                      ref={el => { pageRefs.current[index] = el }}
+                      className="mb-4 relative"
+                      onMouseUp={handleTextSelection}
+                    >
+                      <Page
+                        pageNumber={index + 1}
+                        scale={zoom / 100}
+                        renderTextLayer={true}
+                        renderAnnotationLayer={true}
+                        className="shadow-2xl"
+                      />
+                      
+                      {/* Highlights Overlay */}
+                      {showHighlights && highlights
+                        .filter(h => h.page === index + 1)
+                        .map((highlight) => (
+                          <div key={highlight.id} className="absolute inset-0 pointer-events-none">
+                            {highlight.rects.map((rect, rectIndex) => (
+                              <div
+                                key={rectIndex}
+                                className={`absolute ${colors[highlight.color as keyof typeof colors].bg} ${colors[highlight.color as keyof typeof colors].border} border-2 cursor-pointer`}
+                                style={{
+                                  left: `${rect.x}px`,
+                                  top: `${rect.y}px`,
+                                  width: `${rect.width}px`,
+                                  height: `${rect.height}px`,
+                                }}
+                                onDoubleClick={() => deleteHighlight(highlight.id)}
+                                title={highlight.text}
+                              />
+                            ))}
+                          </div>
+                        ))}
+                    </div>
+                  ))}
+                </Document>
+              </div>
+            )}
+
+            {/* Selection Rectangle for Highlighting */}
+            {isHighlighting && selectionRef.current && (
+              <div
+                className="absolute border-2 border-purple-500 bg-purple-500/20 pointer-events-none z-50"
+                style={{
+                  left: Math.min(selectionRef.current.startX, selectionRef.current.endX),
+                  top: Math.min(selectionRef.current.startY, selectionRef.current.endY),
+                  width: Math.abs(selectionRef.current.endX - selectionRef.current.startX),
+                  height: Math.abs(selectionRef.current.endY - selectionRef.current.startY),
+                }}
+              />
+            )}
+
+            {/* Highlight Selected Text Button */}
+            {selectedText && isHighlighting && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="fixed z-50 bg-slate-800 border border-slate-700 rounded-lg p-3 shadow-xl"
+                style={{
+                  top: selectionRef.current ? `${Math.min(selectionRef.current.startY, selectionRef.current.endY) - 50}px` : '50%',
+                  left: selectionRef.current ? `${Math.min(selectionRef.current.startX, selectionRef.current.endX)}px` : '50%',
+                }}
+              >
+                <button
+                  onClick={() => {
+                    if (selectedText && selectionRef.current) {
+                      const { startX, startY, endX, endY } = selectionRef.current
+                      const x = Math.min(startX, endX)
+                      const y = Math.min(startY, endY)
+                      const width = Math.abs(endX - startX)
+                      const height = Math.abs(endY - startY)
+
+                      const pageElement = pageRefs.current[currentPage - 1]
+                      const pageRect = pageElement?.getBoundingClientRect()
+                      const containerRect = pdfContainerRef.current?.getBoundingClientRect()
+                      
+                      if (pageRect && containerRect) {
+                        const relativeX = (x - (pageRect.left - containerRect.left)) / (zoom / 100)
+                        const relativeY = (y - (pageRect.top - containerRect.top)) / (zoom / 100)
+                        const relativeWidth = width / (zoom / 100)
+                        const relativeHeight = height / (zoom / 100)
+
+                        const highlight: Highlight = {
+                          id: Date.now().toString(),
+                          page: currentPage,
+                          text: selectedText,
+                          rects: [{
+                            x: relativeX,
+                            y: relativeY,
+                            width: relativeWidth,
+                            height: relativeHeight
+                          }],
+                          color: highlightColor,
+                          createdAt: new Date().toISOString()
+                        }
+                        setHighlights([...highlights, highlight])
+                        setIsHighlighting(false)
+                        setSelectedText('')
+                        window.getSelection()?.removeAllRanges()
+                      }
+                    }
+                  }}
+                  className="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg text-sm font-medium flex items-center space-x-2"
+                >
+                  <Highlighter className="w-4 h-4" />
+                  <span>Highlight</span>
+                </button>
+              </motion.div>
+            )}
           </div>
         </div>
 
@@ -518,7 +625,7 @@ export default function TextbookViewer({ textbookId, onClose }: { textbookId?: s
                             if (isHighlighting) setHighlightColor(color)
                             if (isAddingNote) setNoteColor(color)
                           }}
-                          className={`w-8 h-8 rounded ${colors[color as keyof typeof colors]} border-2 ${
+                          className={`w-8 h-8 rounded ${colors[color as keyof typeof colors].bg} ${colors[color as keyof typeof colors].border} border-2 ${
                             (isHighlighting && highlightColor === color) || (isAddingNote && noteColor === color)
                               ? 'border-white scale-110'
                               : 'border-transparent'
@@ -529,44 +636,64 @@ export default function TextbookViewer({ textbookId, onClose }: { textbookId?: s
                   </div>
                 )}
 
-                {/* Quick Note Input */}
-                <div className="mb-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="text-sm font-medium text-gray-300">Quick Note</label>
-                    <button
-                      onClick={() => {
-                        setIsAddingNote(!isAddingNote)
-                        setIsHighlighting(false)
-                      }}
-                      className="text-xs text-purple-400 hover:text-purple-300"
-                    >
-                      {isAddingNote ? 'Cancel' : 'New'}
-                    </button>
-                  </div>
-                  {isAddingNote ? (
-                    <div className="space-y-2">
-                      <textarea
-                        value={newNoteText}
-                        onChange={(e) => setNewNoteText(e.target.value)}
-                        placeholder="Write your note here..."
-                        className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg focus:outline-none focus:border-purple-500 text-white text-sm resize-none"
-                        rows={4}
+                {/* Note Input Form */}
+                {isAddingNote && (
+                  <div className="mb-4 space-y-3">
+                    <div>
+                      <label className="text-xs text-gray-400 mb-1 block">Note Title</label>
+                      <input
+                        type="text"
+                        value={newNoteTitle}
+                        onChange={(e) => setNewNoteTitle(e.target.value)}
+                        placeholder="Enter note title..."
+                        className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg focus:outline-none focus:border-purple-500 text-white text-sm"
                         autoFocus
                       />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-400 mb-1 block">Note Content</label>
+                      <textarea
+                        value={newNoteContent}
+                        onChange={(e) => setNewNoteContent(e.target.value)}
+                        placeholder="Write your note here..."
+                        className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg focus:outline-none focus:border-purple-500 text-white text-sm resize-none"
+                        rows={6}
+                      />
+                    </div>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => {
+                          setIsAddingNote(false)
+                          setNewNoteTitle('')
+                          setNewNoteContent('')
+                        }}
+                        className="flex-1 px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm"
+                      >
+                        Cancel
+                      </button>
                       <button
                         onClick={addNote}
-                        disabled={!newNoteText.trim()}
-                        className="w-full px-3 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm font-medium"
+                        disabled={!newNoteTitle.trim() || !newNoteContent.trim()}
+                        className="flex-1 px-3 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm font-medium"
                       >
                         Save Note
                       </button>
                     </div>
-                  ) : (
-                    <div className="text-xs text-gray-500 p-2 bg-slate-800/50 rounded">
-                      Click "New" to add a note for this page
-                    </div>
-                  )}
-                </div>
+                  </div>
+                )}
+
+                {!isAddingNote && (
+                  <button
+                    onClick={() => {
+                      setIsAddingNote(true)
+                      setIsHighlighting(false)
+                    }}
+                    className="w-full px-3 py-2 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/50 rounded-lg text-sm font-medium flex items-center justify-center space-x-2"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>New Note</span>
+                  </button>
+                )}
               </div>
 
               {/* Scrollable Content */}
@@ -584,24 +711,42 @@ export default function TextbookViewer({ textbookId, onClose }: { textbookId?: s
                       No annotations on this page
                     </div>
                   ) : (
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                       {currentPageNotes.map((note) => (
                         <div
                           key={note.id}
-                          className={`p-3 rounded-lg border ${colors[note.color as keyof typeof colors]} bg-slate-800/50`}
+                          className={`p-4 rounded-lg border ${colors[note.color as keyof typeof colors].border} bg-slate-800/50`}
                         >
                           {editingNoteId === note.id ? (
-                            <div className="space-y-2">
+                            <div className="space-y-3">
+                              <input
+                                type="text"
+                                value={note.title}
+                                onChange={(e) => {
+                                  const updatedNote = { ...note, title: e.target.value }
+                                  setNotes(notes.map(n => n.id === note.id ? updatedNote : n))
+                                }}
+                                className="w-full px-2 py-1 bg-slate-700 border border-slate-600 rounded text-sm text-white font-semibold"
+                                placeholder="Note title"
+                              />
                               <textarea
-                                value={note.text}
-                                onChange={(e) => updateNote(note.id, e.target.value)}
+                                value={note.content}
+                                onChange={(e) => {
+                                  const updatedNote = { ...note, content: e.target.value }
+                                  setNotes(notes.map(n => n.id === note.id ? updatedNote : n))
+                                }}
                                 className="w-full px-2 py-1 bg-slate-700 border border-slate-600 rounded text-sm text-white resize-none"
-                                rows={3}
-                                autoFocus
+                                rows={6}
+                                placeholder="Note content"
                               />
                               <div className="flex space-x-2">
                                 <button
-                                  onClick={() => updateNote(note.id, note.text)}
+                                  onClick={() => {
+                                    const noteToUpdate = notes.find(n => n.id === note.id)
+                                    if (noteToUpdate) {
+                                      updateNote(noteToUpdate.id, noteToUpdate.title, noteToUpdate.content)
+                                    }
+                                  }}
                                   className="flex-1 px-2 py-1 bg-green-600 hover:bg-green-700 rounded text-xs"
                                 >
                                   Save
@@ -617,7 +762,7 @@ export default function TextbookViewer({ textbookId, onClose }: { textbookId?: s
                           ) : (
                             <>
                               <div className="flex items-start justify-between mb-2">
-                                <p className="text-sm text-white flex-1">{note.text}</p>
+                                <h5 className="text-sm font-semibold text-white flex-1">{note.title}</h5>
                                 <button
                                   onClick={() => setEditingNoteId(note.id)}
                                   className="ml-2 p-1 hover:bg-slate-700 rounded"
@@ -626,9 +771,11 @@ export default function TextbookViewer({ textbookId, onClose }: { textbookId?: s
                                   <Edit2 className="w-3 h-3 text-gray-400" />
                                 </button>
                               </div>
-                              <div className="flex items-center justify-between mt-2">
+                              <p className="text-sm text-gray-300 whitespace-pre-wrap mb-2">{note.content}</p>
+                              <div className="flex items-center justify-between mt-3 pt-2 border-t border-slate-700">
                                 <p className="text-xs text-gray-400">
                                   {new Date(note.createdAt).toLocaleDateString()}
+                                  {note.updatedAt !== note.createdAt && ' (edited)'}
                                 </p>
                                 <button
                                   onClick={() => deleteNote(note.id)}
@@ -644,7 +791,7 @@ export default function TextbookViewer({ textbookId, onClose }: { textbookId?: s
                       {currentPageHighlights.map((highlight) => (
                         <div
                           key={highlight.id}
-                          className={`p-3 rounded-lg border ${colors[highlight.color as keyof typeof colors]} bg-slate-800/50`}
+                          className={`p-3 rounded-lg border ${colors[highlight.color as keyof typeof colors].border} bg-slate-800/50`}
                         >
                           <p className="text-sm text-white italic mb-2">"{highlight.text}"</p>
                           <div className="flex items-center justify-between">
